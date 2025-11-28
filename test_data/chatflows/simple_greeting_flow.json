@@ -1,0 +1,51 @@
+{
+  "id": "simple_greeting_flow",
+  "name": "Simple Greeting Flow",
+  "description": "A simple convo that greets users and asks for their name",
+  "version": "1.0.0",
+  "start_node_id": "welcome",
+  "timeout_minutes": 30,
+  "max_retries": 3,
+  "nodes": [
+    {
+      "id": "welcome",
+      "type": "message",
+      "name": "Welcome Message",
+      "description": "Initial welcome message",
+      "message": "Hello! Welcome to our service. What's your name?",
+      "collect_input": true,
+      "input_field": "user_name",
+      "input_type": "text",
+      "validations": [
+        {
+          "type": "length",
+          "params": {
+            "min": 2,
+            "max": 50
+          },
+          "error_message": "Name must be between 2 and 50 characters"
+        }
+      ],
+      "default_transition": "greeting"
+    },
+    {
+      "id": "greeting",
+      "type": "message",
+      "name": "Personalized Greeting",
+      "description": "Greet user by name",
+      "message_template": "Nice to meet you, {user_name}! How can I help you today?",
+      "transitions": [
+        {
+          "condition": "true",
+          "target_node_id": "end"
+        }
+      ]
+    },
+    {
+      "id": "end",
+      "type": "end",
+      "name": "End Node",
+      "description": "Flow termination point"
+    }
+  ]
+}

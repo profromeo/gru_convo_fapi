@@ -1,0 +1,1001 @@
+{
+  "id": "enhanced_customer_support_flow",
+  "name": "Enhanced Customer Support Flow",
+  "description": "Multi-level customer support convo with nested menus and AI chat",
+  "version": "1.1",
+  "start_node_id": "start",
+  "timeout_minutes": 60,
+  "max_retries": 3,
+  "tags": [
+    "support",
+    "customer-service",
+    "multi-level",
+    "ai-chat"
+  ],
+  "nodes": [
+    {
+      "id": "start",
+      "type": "menu",
+      "name": "Main Menu",
+      "description": "Welcome and main menu",
+      "message": "🏠 Welcome to Customer Support! I'm here to help you today.\n\nPlease select an option:\n1. Technical Support\n2. Billing & Payments\n3. Account Management\n4. AI Chat Assistant\n5. Speak to Agent\n\nType the number of your choice:",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "technical_menu",
+          "label": "Technical Support"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "billing_menu",
+          "label": "Billing & Payments"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "3"
+          },
+          "target_node_id": "account_menu",
+          "label": "Account Management"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "4"
+          },
+          "target_node_id": "ai_chat_intro",
+          "label": "AI Chat Assistant"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "5"
+          },
+          "target_node_id": "agent_transfer",
+          "label": "Speak to Agent"
+        }
+      ],
+      "default_transition": "invalid_input"
+    },
+    {
+      "id": "ai_chat_intro",
+      "type": "ai_chat",
+      "name": "AI Chat Introduction",
+      "message": "🤖 AI Chat Assistant\n\nYou're about to enter our AI-powered chat assistant. This intelligent assistant can help you with:\n\n✓ General questions about our services\n✓ Product information and recommendations\n✓ Troubleshooting common issues\n✓ Account inquiries\n✓ And much more!\n\nThe AI assistant has access to your account context and chat history to provide personalized assistance.\n\nType 'exit' or 'menu' at any time to return to the main menu.\n\nReady to start? Type anything to begin chatting with our AI assistant!",
+      "collect_input": true,
+      "input_type": "text",
+      "ai_config": {
+        "llm_model": "qwen2.5:7b-instruct-q5_K_S",
+        "system_prompt": "You are a helpful customer support AI assistant. You have access to the customer's account information and chat history. Be friendly, professional, and concise. If you cannot help with something, suggest transferring to a human agent. Always maintain context from previous messages in the conversation.",
+        "max_history_messages": 10,
+        "include_chat_history": true,
+        "context_variables": [
+          "user_email",
+          "user_id",
+          "account_type",
+          "previous_issues"
+        ],
+        "exit_keywords": [
+          "exit",
+          "menu",
+          "main menu",
+          "quit",
+          "stop"
+        ],
+        "exit_node_id": "ai_chat_exit"
+      },
+      "transitions": [
+        {
+          "condition": null,
+          "target_node_id": "ai_chat_node",
+          "label": "Start AI Chat"
+        }
+      ]
+    },
+    {
+      "id": "ai_chat_node",
+      "type": "ai_chat",
+      "name": "AI Chat Assistant",
+      "message": "🤖 AI Assistant is ready! How can I help you today?",
+      "collect_input": true,
+      "input_type": "text",
+      "ai_config": {
+        "llm_model": "qwen2.5:7b-instruct-q5_K_S",
+        "system_prompt": "You are a helpful customer support AI assistant. You have access to the customer's account information and chat history. Be friendly, professional, and concise. If you cannot help with something, suggest transferring to a human agent. Always maintain context from previous messages in the conversation.",
+        "max_history_messages": 10,
+        "include_chat_history": true,
+        "context_variables": [
+          "user_email",
+          "user_id",
+          "account_type",
+          "previous_issues"
+        ],
+        "exit_keywords": [
+          "exit",
+          "menu",
+          "main menu",
+          "quit",
+          "stop"
+        ],
+        "exit_node_id": "ai_chat_exit"
+      },
+      "transitions": []
+    },
+    {
+      "id": "ai_chat_exit",
+      "type": "menu",
+      "name": "AI Chat Exit",
+      "message": "👋 Thank you for using our AI Chat Assistant!\n\nWas the AI assistant helpful?\n\nWhat would you like to do next?\n1. Return to Main Menu\n2. Speak to Human Agent\n3. End Chat",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "start",
+          "label": "Main Menu"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "agent_transfer",
+          "label": "Speak to Agent"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "3"
+          },
+          "target_node_id": "end",
+          "label": "End Chat"
+        }
+      ],
+      "default_transition": "start"
+    },
+    {
+      "id": "technical_menu",
+      "type": "menu",
+      "name": "Technical Support Menu",
+      "message": "🔧 Technical Support\n\nWhat technical issue are you experiencing?\n1. Login Problems\n2. Performance Issues\n3. Error Messages\n4. AI Chat for Technical Help\n5. Return to Main Menu",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "login_issues",
+          "label": "Login Problems"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "performance_issues",
+          "label": "Performance Issues"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "3"
+          },
+          "target_node_id": "error_messages",
+          "label": "Error Messages"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "4"
+          },
+          "target_node_id": "ai_chat_intro",
+          "label": "AI Chat"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "5"
+          },
+          "target_node_id": "start",
+          "label": "Main Menu"
+        }
+      ],
+      "default_transition": "invalid_technical"
+    },
+    {
+      "id": "login_issues",
+      "type": "menu",
+      "name": "Login Issues",
+      "message": "🔐 Login Problems\n\nWhat specific login issue are you facing?\n1. Forgot Password\n2. Account Locked\n3. Two-Factor Authentication\n4. Return to Technical Support",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "forgot_password",
+          "label": "Forgot Password"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "account_locked",
+          "label": "Account Locked"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "3"
+          },
+          "target_node_id": "two_factor_auth",
+          "label": "Two-Factor Authentication"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "4"
+          },
+          "target_node_id": "technical_menu",
+          "label": "Back to Technical Support"
+        }
+      ],
+      "default_transition": "invalid_login"
+    },
+    {
+      "id": "forgot_password",
+      "type": "collect_input",
+      "name": "Forgot Password",
+      "message": "📧 Password Reset\n\nPlease provide your email address and we'll send you a password reset link:",
+      "collect_input": true,
+      "input_type": "email",
+      "input_field": "user_email",
+      "actions": [
+        {
+          "type": "api_call",
+          "api_action": {
+            "url": "http://example.com/api/password-reset",
+            "method": "POST",
+            "input": [
+              "user_email"
+            ],
+            "output": [
+              "reset_token",
+              "expires_at"
+            ],
+            "headers": {
+              "Authorization": "Bearer YOUR_API_KEY"
+            },
+            "timeout": 30
+          },
+          "on_success": "password_reset_confirmation",
+          "on_failure": "password_reset_error"
+        }
+      ],
+      "transitions": [
+        {
+          "condition": null,
+          "target_node_id": "password_reset_confirmation",
+          "label": "Continue"
+        }
+      ]
+    },
+    {
+      "id": "password_reset_confirmation",
+      "type": "menu",
+      "name": "Password Reset Confirmation",
+      "message": "✅ Password reset link sent!\n\nWe've sent a password reset link to {{user_email}}. Please check your email and follow the instructions.\n\nWhat would you like to do next?\n1. Return to Main Menu\n2. Speak to Agent",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "start"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "agent_transfer"
+        }
+      ],
+      "default_transition": "start"
+    },
+    {
+      "id": "password_reset_error",
+      "type": "message",
+      "name": "Password Reset Error",
+      "message": "⚠️ Sorry, we encountered an issue sending the password reset link. Please try again or speak to an agent.\n\n1. Return to Main Menu\n2. Speak to Agent",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "start"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "agent_transfer"
+        }
+      ],
+      "default_transition": "start"
+    },
+    {
+      "id": "account_locked",
+      "type": "collect_input",
+      "name": "Account Locked",
+      "message": "🔒 Account Locked\n\nI'll help you unlock your account. Please provide your email address:",
+      "collect_input": true,
+      "input_type": "email",
+      "input_field": "user_email",
+      "default_transition": "account_unlock_confirmation"
+    },
+    {
+      "id": "account_unlock_confirmation",
+      "type": "menu",
+      "name": "Account Unlock Confirmation",
+      "message": "✅ Account unlock request submitted!\n\nWe've received your request to unlock the account for {{user_email}}. Our team will review and unlock your account within 24 hours.\n\nWhat would you like to do next?\n1. Return to Main Menu\n2. Speak to Agent",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "start"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "agent_transfer"
+        }
+      ],
+      "default_transition": "start"
+    },
+    {
+      "id": "two_factor_auth",
+      "type": "collect_input",
+      "name": "Two Factor Authentication",
+      "message": "🔐 Two-Factor Authentication Help\n\nPlease describe your 2FA issue or provide your email address:",
+      "collect_input": true,
+      "input_type": "text",
+      "input_field": "two_fa_issue",
+      "default_transition": "two_fa_confirmation"
+    },
+    {
+      "id": "two_fa_confirmation",
+      "type": "menu",
+      "name": "Two Factor Authentication Confirmation",
+      "message": "✅ 2FA Support Request Received!\n\nWe've received your 2FA issue: {{two_fa_issue}}\n\nOur support team will contact you shortly to help resolve this.\n\nWhat would you like to do next?\n1. Return to Main Menu\n2. Speak to Agent",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "start"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "agent_transfer"
+        }
+      ],
+      "default_transition": "start"
+    },
+    {
+      "id": "performance_issues",
+      "type": "collect_input",
+      "name": "Performance Issues",
+      "message": "⚡ Performance Issues\n\nPlease describe the performance problem you're experiencing:",
+      "collect_input": true,
+      "input_type": "text",
+      "input_field": "performance_description",
+      "default_transition": "performance_confirmation"
+    },
+    {
+      "id": "performance_confirmation",
+      "type": "menu",
+      "name": "Performance Confirmation",
+      "message": "✅ Performance Issue Logged!\n\nWe've recorded your issue: {{performance_description}}\n\nOur technical team will investigate and get back to you soon.\n\nWhat would you like to do next?\n1. Return to Main Menu\n2. Speak to Agent",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "start"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "agent_transfer"
+        }
+      ],
+      "default_transition": "start"
+    },
+    {
+      "id": "error_messages",
+      "type": "collect_input",
+      "name": "Error Messages",
+      "message": "❌ Error Messages\n\nPlease provide the error message you're seeing:",
+      "collect_input": true,
+      "input_type": "text",
+      "input_field": "error_description",
+      "default_transition": "error_confirmation"
+    },
+    {
+      "id": "error_confirmation",
+      "type": "menu",
+      "name": "Error Confirmation",
+      "message": "✅ Error Report Received!\n\nWe've logged the error: {{error_description}}\n\nOur team will analyze this and provide a solution.\n\nWhat would you like to do next?\n1. Return to Main Menu\n2. Speak to Agent",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "start"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "agent_transfer"
+        }
+      ],
+      "default_transition": "start"
+    },
+    {
+      "id": "billing_menu",
+      "type": "menu",
+      "name": "Billing & Payments Menu",
+      "message": "💳 Billing & Payments\n\nHow can I help with billing?\n1. View Invoice\n2. Payment Issues\n3. Refund Request\n4. Return to Main Menu",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "view_invoice"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "payment_issues"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "3"
+          },
+          "target_node_id": "refund_request"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "4"
+          },
+          "target_node_id": "start"
+        }
+      ],
+      "default_transition": "invalid_billing"
+    },
+    {
+      "id": "view_invoice",
+      "type": "collect_input",
+      "name": "View Invoice",
+      "message": "📄 View Invoice\n\nPlease provide your invoice number or email address:",
+      "collect_input": true,
+      "input_type": "text",
+      "input_field": "invoice_identifier",
+      "default_transition": "invoice_response"
+    },
+    {
+      "id": "invoice_response",
+      "type": "menu",
+      "name": "Invoice Response",
+      "message": "✅ Invoice Information\n\nThank you for providing that information. We're retrieving your invoice details:\n\n{invoice_identifier}\n\nYou can view your invoice online at [website] or download it from your account.\n\nWhat would you like to do next?\n1. Return to Billing Menu\n2. Return to Main Menu\n3. Speak to an Agent",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "billing_menu"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "start"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "3"
+          },
+          "target_node_id": "agent_transfer"
+        }
+      ],
+      "default_transition": "start"
+    },
+    {
+      "id": "payment_issues",
+      "type": "collect_input",
+      "name": "Payment Issues",
+      "message": "💳 Payment Issues\n\nPlease describe the payment problem you're experiencing:",
+      "collect_input": true,
+      "input_type": "text",
+      "input_field": "payment_issue_description",
+      "default_transition": "payment_issue_response"
+    },
+    {
+      "id": "payment_issue_response",
+      "type": "menu",
+      "name": "Payment Issue Response",
+      "message": "✅ Payment Issue Logged\n\nThank you for describing your payment issue:\n\n{payment_issue_description}\n\nOur billing team will investigate and contact you within 24 hours.\n\nWhat would you like to do next?\n1. Return to Billing Menu\n2. Return to Main Menu\n3. Speak to an Agent",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "billing_menu"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "start"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "3"
+          },
+          "target_node_id": "agent_transfer"
+        }
+      ],
+      "default_transition": "start"
+    },
+    {
+      "id": "refund_request",
+      "type": "collect_input",
+      "name": "Refund Request",
+      "message": "💰 Refund Request\n\nPlease provide details about the refund you're requesting:\n1. Invoice number\n2. Reason for refund\n3. Amount requested\n4. Supporting documentation",
+      "collect_input": true,
+      "input_type": "text",
+      "input_field": "refund_details",
+      "default_transition": "refund_response"
+    },
+    {
+      "id": "refund_response",
+      "type": "menu",
+      "name": "Refund Response",
+      "message": "✅ Refund Request Submitted\n\nThank you for submitting your refund request:\n\n{refund_details}\n\nOur billing team will review your case and respond within 5 business days.\n\nWhat would you like to do next?\n1. Return to Billing Menu\n2. Return to Main Menu\n3. Speak to an Agent",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "billing_menu"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "start"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "3"
+          },
+          "target_node_id": "agent_transfer"
+        }
+      ],
+      "default_transition": "start"
+    },
+    {
+      "id": "account_menu",
+      "type": "menu",
+      "name": "Account Management Menu",
+      "message": "👤 Account Management\n\nWhat would you like to manage about your account?\n1. Profile Information\n2. Security Settings\n3. Notification Preferences\n4. Account Deactivation\n5. Return to Main Menu",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "profile_info"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "security_settings"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "3"
+          },
+          "target_node_id": "notification_prefs"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "4"
+          },
+          "target_node_id": "account_deactivation"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "5"
+          },
+          "target_node_id": "start"
+        }
+      ],
+      "default_transition": "invalid_account"
+    },
+    {
+      "id": "profile_info",
+      "type": "message",
+      "name": "Profile Information",
+      "message": "👤 Profile Information\n\nTo update your profile information, please visit our website at [website] and log in to your account.\n\nFor immediate assistance, please:\n1. Call our support line at [phone]\n2. Email us at [email]\n\nWhat would you like to do?\n1. Return to Account Menu\n2. Return to Main Menu\n3. Speak to an Agent",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "account_menu"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "start"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "3"
+          },
+          "target_node_id": "agent_transfer"
+        }
+      ],
+      "default_transition": "start"
+    },
+    {
+      "id": "security_settings",
+      "type": "message",
+      "name": "Security Settings",
+      "message": "🔒 Security Settings\n\nTo update your security settings, please visit our website at [website] and log in to your account.\n\nFor immediate assistance, please:\n1. Call our security team at [phone]\n2. Email us at [email]\n\nWhat would you like to do?\n1. Return to Account Menu\n2. Return to Main Menu\n3. Speak to an Agent",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "account_menu"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "start"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "3"
+          },
+          "target_node_id": "agent_transfer"
+        }
+      ],
+      "default_transition": "start"
+    },
+    {
+      "id": "notification_prefs",
+      "type": "message",
+      "name": "Notification Preferences",
+      "message": "🔔 Notification Preferences\n\nTo update your notification preferences, please visit our website at [website] and log in to your account.\n\nFor immediate assistance, please:\n1. Call our support line at [phone]\n2. Email us at [email]\n\nWhat would you like to do?\n1. Return to Account Menu\n2. Return to Main Menu\n3. Speak to an Agent",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "account_menu"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "start"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "3"
+          },
+          "target_node_id": "agent_transfer"
+        }
+      ],
+      "default_transition": "start"
+    },
+    {
+      "id": "account_deactivation",
+      "type": "message",
+      "name": "Account Deactivation",
+      "message": "🗑️ Account Deactivation\n\nTo deactivate your account, please visit our website at [website] and log in to your account.\n\nFor immediate assistance, please:\n1. Call our support line at [phone]\n2. Email us at [email]\n\nWhat would you like to do?\n1. Return to Account Menu\n2. Return to Main Menu\n3. Speak to an Agent",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "account_menu"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "start"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "3"
+          },
+          "target_node_id": "agent_transfer"
+        }
+      ],
+      "default_transition": "start"
+    },
+    {
+      "id": "agent_transfer",
+      "type": "message",
+      "name": "Agent Transfer",
+      "description": "Transfer to human agent",
+      "message": "📞 Connecting you to a human agent...\n\nOur team will assist you shortly. Please hold on while we connect you.",
+      "collect_input": false,
+      "default_transition": "end"
+    },
+    {
+      "id": "end",
+      "type": "end",
+      "name": "End Chat",
+      "description": "End the conversation",
+      "message": "👋 Thank you for contacting Customer Support!\n\nIf you need further assistance, feel free to reach out again.\n\nHave a great day!",
+      "collect_input": false
+    },
+    {
+      "id": "invalid_input",
+      "type": "message",
+      "name": "Invalid Input",
+      "description": "Handle invalid input",
+      "message": "⚠️ I didn't understand that. Please select a valid option from the menu.\n\nType 'menu' or 'home' to return to the main menu.",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "contains",
+            "field": "input",
+            "value": "menu"
+          },
+          "target_node_id": "start"
+        }
+      ],
+      "default_transition": "start"
+    },
+    {
+      "id": "invalid_technical",
+      "type": "message",
+      "name": "Invalid Technical Input",
+      "message": "⚠️ Invalid selection for Technical Support. Please choose from the options provided.\n\nType 'menu' to return to main menu.",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "contains",
+            "field": "input",
+            "value": "menu"
+          },
+          "target_node_id": "start"
+        }
+      ],
+      "default_transition": "technical_menu"
+    },
+    {
+      "id": "invalid_login",
+      "type": "message",
+      "name": "Invalid Login Input",
+      "message": "⚠️ Invalid selection for Login Issues. Please choose from the options provided.\n\nType 'menu' to return to main menu.",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "contains",
+            "field": "input",
+            "value": "menu"
+          },
+          "target_node_id": "start"
+        }
+      ],
+      "default_transition": "login_issues"
+    },
+    {
+      "id": "invalid_billing",
+      "type": "message",
+      "name": "Invalid Billing Input",
+      "message": "⚠️ Invalid selection for Billing. Please choose from the options provided.\n\nType 'menu' to return to main menu.",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "contains",
+            "field": "input",
+            "value": "menu"
+          },
+          "target_node_id": "start"
+        }
+      ],
+      "default_transition": "billing_menu"
+    },
+    {
+      "id": "invalid_account",
+      "type": "message",
+      "name": "Invalid Account Input",
+      "message": "⚠️ Invalid selection for Account Management. Please choose from the options provided.\n\nType 'menu' to return to main menu.",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "contains",
+            "field": "input",
+            "value": "menu"
+          },
+          "target_node_id": "start"
+        }
+      ],
+      "default_transition": "account_menu"
+    }
+  ]
+}

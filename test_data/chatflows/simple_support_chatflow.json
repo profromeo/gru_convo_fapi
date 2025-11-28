@@ -1,0 +1,374 @@
+{
+  "id": "simple_support_flow",
+  "name": "Simple Support Flow",
+  "description": "Simplified healthcare practice support convo with credential collection, AI chat, support ticket, and department contacts",
+  "version": "1.0",
+  "start_node_id": "collect_practice_number",
+  "timeout_minutes": 60,
+  "max_retries": 3,
+  "tags": [
+    "healthcare",
+    "practice-support",
+    "ai-chat",
+    "support-ticket"
+  ],
+  "nodes": [
+    {
+      "id": "collect_practice_number",
+      "type": "collect_input",
+      "name": "Collect Practice Number",
+      "description": "Request practice number from user",
+      "message": "👋 Welcome to Practice Support!\n\nTo get started, please provide your Practice Number:",
+      "collect_input": true,
+      "input_type": "text",
+      "input_field": "practice_number",
+      "validations": [
+        {
+          "type": "required",
+          "params": {},
+          "error_message": "⚠️ Practice number is required. Please enter your practice number."
+        },
+        {
+          "type": "number",
+          "params": {},
+          "error_message": "⚠️ Practice number must be a valid number. Please enter only digits."
+        },
+        {
+          "type": "length",
+          "params": {
+            "min": 4,
+            "max": 10
+          },
+          "error_message": "⚠️ Practice number must be between 4 and 10 digits."
+        }
+      ],
+      "transitions": [
+        {
+          "condition": null,
+          "target_node_id": "collect_email",
+          "label": "Continue to email"
+        }
+      ],
+      "actions": [
+        {
+          "type": "api_call",
+          "api_action": {
+            "url": "https://test.grucode.dev.co.za:3044/api/site/search_practice_number",
+            "method": "POST",
+            "input": [
+              "practice_number"
+            ],
+            "output": [
+              "lastname"
+            ],
+            "headers": {
+              "Authorization": "Bearer YOUR_API_KEY",
+              "Content-Type": "application/json"
+            },
+            "timeout": 30
+          },
+          "on_success": "collect_email",
+          "on_failure": "collect_practice_number"
+        }
+      ]
+    },
+    {
+      "id": "collect_email",
+      "type": "collect_input",
+      "name": "Collect Email",
+      "description": "Request email address from user",
+      "message": "📧 Thank you! Dr {{lastname}}, please provide your contact email address:",
+      "collect_input": true,
+      "input_type": "email",
+      "input_field": "user_email",
+      "validations": [
+        {
+          "type": "required",
+          "params": {},
+          "error_message": "⚠️ Email address is required. Please enter your email."
+        },
+        {
+          "type": "email",
+          "params": {},
+          "error_message": "⚠️ Please enter a valid email address (e.g., doctor@example.com)."
+        },
+        {
+          "type": "length",
+          "params": {
+            "min": 5,
+            "max": 100
+          },
+          "error_message": "⚠️ Email address must be between 5 and 100 characters."
+        }
+      ],
+      "transitions": [
+        {
+          "condition": null,
+          "target_node_id": "main_menu",
+          "label": "Continue to main menu"
+        }
+      ]
+    },
+    {
+      "id": "main_menu",
+      "type": "menu",
+      "name": "Main Menu",
+      "description": "Main support menu",
+      "message": "🏠 Practice Support Main Menu\n\nWelcome Dr {{lastname}}!\nPractice Number: {{practice_number}}\nEmail: {{user_email}}\n\nHow can we assist you today?\n\n1. Chat with AI Assistant\n2. Open Support Ticket\n3. Contact Department\n4. End Chat\n\nPlease type the number of your choice:",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "ai_chat_intro",
+          "label": "AI Chat Assistant"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "support_ticket_info",
+          "label": "Open Support Ticket"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "3"
+          },
+          "target_node_id": "department_contacts",
+          "label": "Contact Department"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "4"
+          },
+          "target_node_id": "end",
+          "label": "End Chat"
+        }
+      ],
+      "default_transition": "invalid_main_menu"
+    },
+    {
+      "id": "invalid_main_menu",
+      "type": "message",
+      "name": "Invalid Main Menu Input",
+      "message": "⚠️ Invalid selection. Please choose a number from 1 to 4.\n\nType 'menu' to see the options again.",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "contains",
+            "field": "input",
+            "value": "menu"
+          },
+          "target_node_id": "main_menu"
+        }
+      ],
+      "default_transition": "main_menu"
+    },
+    {
+      "id": "ai_chat_intro",
+      "type": "ai_chat",
+      "name": "AI Chat Introduction",
+      "description": "Introduction to AI chat assistant",
+      "message": "🤖 AI Chat Assistant\n\nWelcome to our intelligent AI support assistant!\n\nI can help you with:\n✓ Practice management questions\n✓ System navigation guidance\n✓ Billing inquiries\n✓ Technical troubleshooting\n✓ General support questions\n✓ And much more!\n\nYour information:\n• Practice Number: {{practice_number}}\n• Email: {{user_email}}\n\nI have access to your account context to provide personalized assistance.\n\n💡 Tips:\n• Type 'exit' or 'menu' at any time to return to the main menu\n• Be specific with your questions for better assistance\n• I'll remember our conversation context\n\nReady to start? Type your question or concern below:",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": null,
+          "target_node_id": "ai_chat_node",
+          "label": "Start AI Chat"
+        }
+      ],
+      "ai_config": {
+        "llm_model": "qwen2.5:7b-instruct-q5_K_S",
+        "system_prompt": "You are a helpful and professional healthcare practice support AI assistant. You are assisting a user with Practice Number {{practice_number}} and email {{user_email}}. Provide clear, accurate, and empathetic support for practice management, technical issues, billing questions, and general inquiries. If you cannot help with something or it requires human intervention, politely suggest transferring to a human agent. Keep responses concise but thorough. Always maintain patient data privacy and HIPAA compliance in your responses. Use the conversation history to provide contextual assistance.",
+        "max_history_messages": 15,
+        "include_chat_history": true,
+        "context_variables": [
+          "practice_number",
+          "user_email",
+          "lastname"
+        ],
+        "exit_keywords": [
+          "exit",
+          "menu",
+          "main menu",
+          "quit",
+          "stop",
+          "end chat",
+          "go back"
+        ],
+        "exit_node_id": "ai_chat_exit"
+      }
+    },
+    {
+      "id": "ai_chat_node",
+      "type": "ai_chat",
+      "name": "AI Chat Assistant",
+      "description": "Interactive AI chat session",
+      "message": "🤖 AI Assistant is listening...",
+      "collect_input": true,
+      "input_type": "text",
+      "ai_config": {
+        "llm_model": "qwen2.5:7b-instruct-q5_K_S",
+        "system_prompt": "You are a helpful and professional healthcare practice support AI assistant. You are assisting a user with Practice Number {{practice_number}} and email {{user_email}}. Provide clear, accurate, and empathetic support for practice management, technical issues, billing questions, and general inquiries. If you cannot help with something or it requires human intervention, politely suggest transferring to a human agent. Keep responses concise but thorough. Always maintain patient data privacy and HIPAA compliance in your responses. Use the conversation history to provide contextual assistance.",
+        "max_history_messages": 15,
+        "include_chat_history": true,
+        "context_variables": [
+          "practice_number",
+          "user_email",
+          "lastname"
+        ],
+        "exit_keywords": [
+          "exit",
+          "menu",
+          "main menu",
+          "quit",
+          "stop",
+          "end chat",
+          "go back"
+        ],
+        "exit_node_id": "ai_chat_exit"
+      },
+      "transitions": []
+    },
+    {
+      "id": "ai_chat_exit",
+      "type": "menu",
+      "name": "AI Chat Exit",
+      "description": "Exit from AI chat session",
+      "message": "👋 Thank you for using our AI Chat Assistant!\n\nWe hope we were able to help you today.\n\nWhat would you like to do next?\n1. Return to Main Menu\n2. Open Support Ticket\n3. End Chat",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "main_menu",
+          "label": "Main Menu"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "support_ticket_info",
+          "label": "Open Support Ticket"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "3"
+          },
+          "target_node_id": "end",
+          "label": "End Chat"
+        }
+      ],
+      "default_transition": "main_menu"
+    },
+    {
+      "id": "support_ticket_info",
+      "type": "menu",
+      "name": "Support Ticket Information",
+      "description": "Provide information about opening a support ticket",
+      "message": "🎫 Open Support Ticket\n\nTo open a support ticket, please visit our support portal:\n\n🌐 URL: https://support.practice-system.com/tickets/new\n\nYour credentials for reference:\n• Practice Number: {{practice_number}}\n• Email: {{user_email}}\n\nYou can also email us directly at:\n📧 support@practice-system.com\n\nWhat would you like to do next?\n1. Return to Main Menu\n2. Contact Department\n3. End Chat",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "main_menu",
+          "label": "Main Menu"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "department_contacts",
+          "label": "Contact Department"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "3"
+          },
+          "target_node_id": "end",
+          "label": "End Chat"
+        }
+      ],
+      "default_transition": "main_menu"
+    },
+    {
+      "id": "department_contacts",
+      "type": "menu",
+      "name": "Department Contacts",
+      "description": "Display department contact information",
+      "message": "📞 Department Contacts\n\nPlease find our department contact details below:\n\n1️⃣ Technical Support\n   📧 tech@practice-system.com\n   ☎️ +1 (555) 123-4567\n   ⏰ Mon-Fri: 8:00 AM - 6:00 PM EST\n\n2️⃣ Billing Department\n   📧 billing@practice-system.com\n   ☎️ +1 (555) 123-4568\n   ⏰ Mon-Fri: 9:00 AM - 5:00 PM EST\n\n3️⃣ Account Management\n   📧 accounts@practice-system.com\n   ☎️ +1 (555) 123-4569\n   ⏰ Mon-Fri: 8:00 AM - 6:00 PM EST\n\n4️⃣ Training & Education\n   📧 training@practice-system.com\n   ☎️ +1 (555) 123-4570\n   ⏰ Mon-Fri: 9:00 AM - 5:00 PM EST\n\n5️⃣ General Inquiries\n   📧 info@practice-system.com\n   ☎️ +1 (555) 123-4500\n   ⏰ Mon-Fri: 8:00 AM - 6:00 PM EST\n\nWhat would you like to do next?\n1. Return to Main Menu\n2. Open Support Ticket\n3. End Chat",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "main_menu",
+          "label": "Main Menu"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "support_ticket_info",
+          "label": "Open Support Ticket"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "3"
+          },
+          "target_node_id": "end",
+          "label": "End Chat"
+        }
+      ],
+      "default_transition": "main_menu"
+    },
+    {
+      "id": "end",
+      "type": "message",
+      "name": "End Chat",
+      "message": "👋 Thank you for using Practice Support!\n\nIf you need further assistance, don't hesitate to reach out.\n\nHave a great day!",
+      "collect_input": false,
+      "input_type": "text",
+      "transitions": []
+    }
+  ]
+}

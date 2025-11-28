@@ -1,0 +1,535 @@
+{
+  "id": "practice_support_flow",
+  "name": "Practice Support Flow",
+  "description": "Healthcare practice support convo with credential collection, password reset, and AI chat assistant",
+  "version": "1.0",
+  "start_node_id": "collect_practice_number",
+  "timeout_minutes": 60,
+  "max_retries": 3,
+  "tags": [
+    "healthcare",
+    "practice-support",
+    "authentication",
+    "ai-chat"
+  ],
+  "nodes": [
+    {
+      "id": "collect_practice_number",
+      "type": "collect_input",
+      "name": "Collect Practice Number",
+      "description": "Request practice number from user",
+      "message": "👋 Welcome to Practice Support!\n\nTo get started, please provide your Practice Number:",
+      "collect_input": true,
+      "input_type": "text",
+      "input_field": "practice_number",
+      "validations": [
+        {
+          "type": "required",
+          "params": {},
+          "error_message": "⚠️ Practice number is required. Please enter your practice number."
+        },
+        {
+          "type": "number",
+          "params": {},
+          "error_message": "⚠️ Practice number must be a valid number. Please enter only digits."
+        },
+        {
+          "type": "length",
+          "params": {
+            "min": 4,
+            "max": 10
+          },
+          "error_message": "⚠️ Practice number must be between 4 and 10 digits."
+        }
+      ],
+      "transitions": [
+        {
+          "condition": null,
+          "target_node_id": "collect_email",
+          "label": "Continue to email"
+        }
+      ],
+      "actions": [
+        {
+          "type": "api_call",
+          "api_action": {
+            "url": "https://test.grucode.dev:3044/api/site/search_practice_number",
+            "method": "POST",
+            "input": [
+              "practice_number"
+            ],
+            "output": [
+              "lastname"
+            ],
+            "headers": {
+              "Authorization": "Bearer YOUR_API_KEY",
+              "Content-Type": "application/json"
+            },
+            "timeout": 30
+          },
+          "on_success": "collect_email",
+          "on_failure": "collect_practice_number"
+        }
+      ]
+    },
+    {
+      "id": "collect_email",
+      "type": "collect_input",
+      "name": "Collect Email",
+      "description": "Request email address from user",
+      "message": "📧 Thank you! Dr {{lastname}}, please provide a contact email address:",
+      "collect_input": true,
+      "input_type": "email",
+      "input_field": "user_email",
+      "validations": [
+        {
+          "type": "required",
+          "params": {},
+          "error_message": "⚠️ Email address is required. Please enter your email."
+        },
+        {
+          "type": "email",
+          "params": {},
+          "error_message": "⚠️ Please enter a valid email address (e.g., doctor@example.com)."
+        },
+        {
+          "type": "length",
+          "params": {
+            "min": 5,
+            "max": 100
+          },
+          "error_message": "⚠️ Email address must be between 5 and 100 characters."
+        }
+      ],
+      "transitions": [
+        {
+          "condition": null,
+          "target_node_id": "credentials_confirmation",
+          "label": "Continue to confirmation"
+        }
+      ]
+    },
+    {
+      "id": "credentials_confirmation",
+      "type": "menu",
+      "name": "Credentials Confirmation",
+      "description": "Confirm collected credentials and proceed to main menu",
+      "message": "✅ Thank you for providing your information!\n\nPractice Number: {{practice_number}}\nEmail: {{user_email}}\n\nIs this information correct?\n1. Yes, continue\n2. No, re-enter information",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "main_menu",
+          "label": "Continue to main menu"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "collect_practice_number",
+          "label": "Re-enter credentials"
+        }
+      ],
+      "default_transition": "invalid_confirmation"
+    },
+    {
+      "id": "invalid_confirmation",
+      "type": "message",
+      "name": "Invalid Confirmation Input",
+      "message": "⚠️ Please select either 1 for Yes or 2 for No.",
+      "collect_input": true,
+      "input_type": "text",
+      "default_transition": "credentials_confirmation"
+    },
+    {
+      "id": "main_menu",
+      "type": "menu",
+      "name": "Main Menu",
+      "description": "Main support menu",
+      "message": "🏠 Practice Support Main Menu\n\nHow can we assist you today?\n\n1. Technical Support - Password Reset\n2. AI Chat Assistant\n3. Speak to Agent\n4. End Chat\n\nPlease type the number of your choice:",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "password_reset_menu",
+          "label": "Password Reset"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "ai_chat_intro",
+          "label": "AI Chat Assistant"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "3"
+          },
+          "target_node_id": "agent_transfer",
+          "label": "Speak to Agent"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "4"
+          },
+          "target_node_id": "end",
+          "label": "End Chat"
+        }
+      ],
+      "default_transition": "invalid_main_menu"
+    },
+    {
+      "id": "invalid_main_menu",
+      "type": "message",
+      "name": "Invalid Main Menu Input",
+      "message": "⚠️ Invalid selection. Please choose a number from 1 to 4.\n\nType 'menu' to see the options again.",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "contains",
+            "field": "input",
+            "value": "menu"
+          },
+          "target_node_id": "main_menu"
+        }
+      ],
+      "default_transition": "main_menu"
+    },
+    {
+      "id": "password_reset_menu",
+      "type": "menu",
+      "name": "Password Reset Menu",
+      "description": "Password reset options",
+      "message": "🔐 Password Reset Support\n\nWe can help you reset your password for:\n\nPractice Number: {{practice_number}}\nEmail: {{user_email}}\n\nWould you like to proceed?\n1. Yes, send password reset link\n2. No, return to main menu",
+      "collect_input": true,
+      "input_type": "text",
+      "actions": [
+        {
+          "type": "api_call",
+          "api_action": {
+            "url": "https://api.practice-system.com/auth/password-reset",
+            "method": "POST",
+            "input": [
+              "practice_number",
+              "user_email"
+            ],
+            "output": [
+              "reset_token",
+              "expires_at",
+              "status"
+            ],
+            "headers": {
+              "Authorization": "Bearer YOUR_API_KEY",
+              "Content-Type": "application/json"
+            },
+            "timeout": 30
+          },
+          "on_success": "password_reset_success",
+          "on_failure": "password_reset_error"
+        }
+      ],
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "password_reset_success",
+          "label": "Process reset"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "main_menu",
+          "label": "Return to menu"
+        }
+      ],
+      "default_transition": "invalid_password_reset"
+    },
+    {
+      "id": "invalid_password_reset",
+      "type": "message",
+      "name": "Invalid Password Reset Input",
+      "message": "⚠️ Please select either 1 to proceed or 2 to return to the main menu.",
+      "collect_input": true,
+      "input_type": "text",
+      "default_transition": "password_reset_menu"
+    },
+    {
+      "id": "process_password_reset",
+      "type": "message",
+      "name": "Process Password Reset",
+      "description": "Process the password reset request",
+      "message": "🔄 Processing your password reset request...\n\nPlease wait a moment.",
+      "collect_input": false,
+      "actions": [
+        {
+          "type": "api_call",
+          "api_action": {
+            "url": "https://api.practice-system.com/auth/password-reset",
+            "method": "POST",
+            "input": [
+              "practice_number",
+              "user_email"
+            ],
+            "output": [
+              "reset_token",
+              "expires_at",
+              "status"
+            ],
+            "headers": {
+              "Authorization": "Bearer YOUR_API_KEY",
+              "Content-Type": "application/json"
+            },
+            "timeout": 30
+          },
+          "on_success": "password_reset_success",
+          "on_failure": "password_reset_error"
+        }
+      ],
+      "transitions": [
+        {
+          "condition": null,
+          "target_node_id": "password_reset_success",
+          "label": "Success"
+        }
+      ]
+    },
+    {
+      "id": "password_reset_success",
+      "type": "menu",
+      "name": "Password Reset Success",
+      "description": "Password reset successful confirmation",
+      "message": "✅ Password Reset Link Sent Successfully!\n\nWe've sent a password reset link to:\n📧 {{user_email}}\n\nFor Practice Number: {{practice_number}}\n\nPlease check your email inbox (and spam folder) for the reset instructions. The link will expire in 24 hours.\n\nWhat would you like to do next?\n1. Return to Main Menu\n2. Speak to Agent\n3. End Chat",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "main_menu",
+          "label": "Main Menu"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "agent_transfer",
+          "label": "Speak to Agent"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "3"
+          },
+          "target_node_id": "end",
+          "label": "End Chat"
+        }
+      ],
+      "default_transition": "main_menu"
+    },
+    {
+      "id": "password_reset_error",
+      "type": "menu",
+      "name": "Password Reset Error",
+      "description": "Password reset failed",
+      "message": "❌ Password Reset Failed\n\nWe encountered an issue processing your password reset request. This could be due to:\n\n• Invalid practice number or email combination\n• System temporarily unavailable\n• Network connectivity issues\n\nWhat would you like to do?\n1. Try Again\n2. Speak to Agent\n3. Return to Main Menu",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "password_reset_menu",
+          "label": "Try again"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "agent_transfer",
+          "label": "Speak to Agent"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "3"
+          },
+          "target_node_id": "main_menu",
+          "label": "Main Menu"
+        }
+      ],
+      "default_transition": "main_menu"
+    },
+    {
+      "id": "ai_chat_intro",
+      "type": "ai_chat",
+      "name": "AI Chat Introduction",
+      "description": "Introduction to AI chat assistant",
+      "message": "🤖 AI Chat Assistant\n\nWelcome to our intelligent AI support assistant!\n\nI can help you with:\n✓ Practice management questions\n✓ System navigation guidance\n✓ Billing inquiries\n✓ Technical troubleshooting\n✓ General support questions\n✓ And much more!\n\nYour information:\n• Practice Number: {{practice_number}}\n• Email: {{user_email}}\n\nI have access to your account context to provide personalized assistance.\n\n💡 Tips:\n• Type 'exit' or 'menu' at any time to return to the main menu\n• Be specific with your questions for better assistance\n• I'll remember our conversation context\n\nReady to start? Type your question or concern below:",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": null,
+          "target_node_id": "ai_chat_node",
+          "label": "Start AI Chat"
+        }
+      ],
+      "ai_config": {
+        "llm_model": "qwen2.5:7b-instruct-q5_K_S",
+        "system_prompt": "You are a helpful and professional healthcare practice support AI assistant. You are assisting a user with Practice Number {{practice_number}} and email {{user_email}}. Provide clear, accurate, and empathetic support for practice management, technical issues, billing questions, and general inquiries. If you cannot help with something or it requires human intervention, politely suggest transferring to a human agent. Keep responses concise but thorough. Always maintain patient data privacy and HIPAA compliance in your responses. Use the conversation history to provide contextual assistance.",
+        "max_history_messages": 15,
+        "include_chat_history": true,
+        "context_variables": [
+          "practice_number",
+          "user_email",
+          "account_type",
+          "previous_issues",
+          "practice_name"
+        ],
+        "exit_keywords": [
+          "exit",
+          "menu",
+          "main menu",
+          "quit",
+          "stop",
+          "end chat",
+          "go back"
+        ],
+        "exit_node_id": "ai_chat_exit"
+      }
+    },
+    {
+      "id": "ai_chat_node",
+      "type": "ai_chat",
+      "name": "AI Chat Assistant",
+      "description": "Interactive AI chat session",
+      "message": "🤖 AI Assistant is listening...",
+      "collect_input": true,
+      "input_type": "text",
+      "ai_config": {
+        "llm_model": "qwen2.5:7b-instruct-q5_K_S",
+        "system_prompt": "You are a helpful and professional healthcare practice support AI assistant. You are assisting a user with Practice Number {{practice_number}} and email {{user_email}}. Provide clear, accurate, and empathetic support for practice management, technical issues, billing questions, and general inquiries. If you cannot help with something or it requires human intervention, politely suggest transferring to a human agent. Keep responses concise but thorough. Always maintain patient data privacy and HIPAA compliance in your responses. Use the conversation history to provide contextual assistance.",
+        "max_history_messages": 15,
+        "include_chat_history": true,
+        "context_variables": [
+          "practice_number",
+          "user_email",
+          "account_type",
+          "previous_issues",
+          "practice_name"
+        ],
+        "exit_keywords": [
+          "exit",
+          "menu",
+          "main menu",
+          "quit",
+          "stop",
+          "end chat",
+          "go back"
+        ],
+        "exit_node_id": "ai_chat_exit"
+      },
+      "transitions": []
+    },
+    {
+      "id": "ai_chat_exit",
+      "type": "menu",
+      "name": "AI Chat Exit",
+      "description": "Exit from AI chat session",
+      "message": "👋 Thank you for using our AI Chat Assistant!\n\nWe hope we were able to help you today.\n\nWhat would you like to do next?\n1. Return to Main Menu\n2. Speak to Human Agent\n3. End Chat",
+      "collect_input": true,
+      "input_type": "text",
+      "transitions": [
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "1"
+          },
+          "target_node_id": "main_menu",
+          "label": "Main Menu"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "2"
+          },
+          "target_node_id": "agent_transfer",
+          "label": "Speak to Agent"
+        },
+        {
+          "condition": {
+            "type": "equals",
+            "field": "input",
+            "value": "3"
+          },
+          "target_node_id": "end",
+          "label": "End Chat"
+        }
+      ],
+      "default_transition": "main_menu"
+    },
+    {
+      "id": "agent_transfer",
+      "type": "message",
+      "name": "Agent Transfer",
+      "description": "Transfer to human agent",
+      "message": "📞 Connecting to Human Agent...\n\nYour Information:\n• Practice Number: {{practice_number}}\n• Email: {{user_email}}\n\nPlease hold while we connect you to the next available support agent. Your conversation history will be shared with the agent to provide seamless assistance.\n\nEstimated wait time: 2-5 minutes\n\nThank you for your patience!",
+      "collect_input": false,
+      "transitions": [
+        {
+          "condition": null,
+          "target_node_id": "end",
+          "label": "End after transfer"
+        }
+      ]
+    },
+    {
+      "id": "end",
+      "type": "end",
+      "name": "End Chat",
+      "description": "End the conversation",
+      "message": "👋 Thank you for contacting Practice Support!\n\nSession Summary:\n• Practice Number: {{practice_number}}\n• Email: {{user_email}}\n\nIf you need further assistance, please don't hesitate to reach out again.\n\n📞 Support Hours: Monday-Friday, 8:00 AM - 6:00 PM EST\n📧 Email: support@practice-system.com\n🌐 Web: www.practice-system.com/support\n\nHave a great day!",
+      "collect_input": false
+    }
+  ]
+}

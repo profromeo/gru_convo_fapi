@@ -1,0 +1,152 @@
+
+{
+  "id": "customer_support_flow",
+  "name": "Customer Support Flow",
+  "description": "A convo for handling customer support inquiries",
+  "version": "1.0.0",
+  "start_node_id": "start",
+  "timeout_minutes": 60,
+  "max_retries": 3,
+  "tags": ["support", "customer-service"],
+  "nodes": [
+    {
+      "id": "start",
+      "type": "start",
+      "name": "Start Node",
+      "description": "Welcome and ask customer about their issue",
+      "message": "Welcome to Customer Support! I'm here to help you today.\n\nWhat can I help you with?\n1. Technical Issue\n2. Billing Question\n3. General Inquiry\n4. Other",
+      "collect_input": true,
+      "input_field": "issue_type",
+      "input_type": "text",
+      "transitions": [
+        {
+          "target_node_id": "technical_support",
+          "condition": {
+            "type": "equals",
+            "field": "issue_type",
+            "value": "1"
+          },
+          "label": "Technical Issue",
+          "priority": 1
+        },
+        {
+          "target_node_id": "billing_support",
+          "condition": {
+            "type": "equals",
+            "field": "issue_type",
+            "value": "2"
+          },
+          "label": "Billing Question",
+          "priority": 2
+        },
+        {
+          "target_node_id": "general_inquiry",
+          "condition": {
+            "type": "equals",
+            "field": "issue_type",
+            "value": "3"
+          },
+          "label": "General Inquiry",
+          "priority": 3
+        },
+        {
+          "target_node_id": "other_issue",
+          "condition": {
+            "type": "equals",
+            "field": "issue_type",
+            "value": "4"
+          },
+          "label": "Other",
+          "priority": 4
+        }
+      ],
+      "default_transition": "other_issue"
+    },
+    {
+      "id": "technical_support",
+      "type": "question",
+      "name": "Technical Support",
+      "description": "Handle technical issues",
+      "message": "I understand you're having a technical issue. Can you please describe the problem in detail?",
+      "collect_input": true,
+      "input_field": "technical_description",
+      "input_type": "text",
+      "default_transition": "collect_contact"
+    },
+    {
+      "id": "billing_support",
+      "type": "question",
+      "name": "Billing Support",
+      "description": "Handle billing questions",
+      "message": "I can help with billing questions. Please describe your billing concern.",
+      "collect_input": true,
+      "input_field": "billing_description",
+      "input_type": "text",
+      "default_transition": "collect_contact"
+    },
+    {
+      "id": "general_inquiry",
+      "type": "question",
+      "name": "General Inquiry",
+      "description": "Handle general inquiries",
+      "message": "What would you like to know about our service?",
+      "collect_input": true,
+      "input_field": "general_question",
+      "input_type": "text",
+      "default_transition": "collect_contact"
+    },
+    {
+      "id": "other_issue",
+      "type": "question",
+      "name": "Other Issue",
+      "description": "Handle other issues",
+      "message": "Please describe your concern and we'll do our best to help.",
+      "collect_input": true,
+      "input_field": "other_description",
+      "input_type": "text",
+      "default_transition": "collect_contact"
+    },
+    {
+      "id": "collect_contact",
+      "type": "collect_input",
+      "name": "Collect Contact Info",
+      "description": "Collect user's email for follow-up",
+      "message": "Thank you for providing that information. Please provide your email address so we can follow up with you.",
+      "collect_input": true,
+      "input_field": "email",
+      "input_type": "email",
+      "validations": [
+        {
+          "type": "email",
+          "params": {},
+          "error_message": "Please provide a valid email address"
+        }
+      ],
+      "default_transition": "confirmation"
+    },
+    {
+      "id": "confirmation",
+      "type": "message",
+      "name": "Confirmation",
+      "description": "Confirm ticket creation",
+      "message_template": "Thank you! We've created a support ticket for you. We'll contact you at {email} within 24 hours.",
+      "actions": [
+        {
+          "type": "save_to_context",
+          "params": {
+            "ticket_created": true,
+            "ticket_timestamp": "{{now}}"
+          }
+        }
+      ],
+      "default_transition": "end"
+    },
+    {
+      "id": "end",
+      "type": "end",
+      "name": "End Node",
+      "description": "End of support flow",
+      "message": "Is there anything else I can help you with today?"
+    }
+  ]
+}
