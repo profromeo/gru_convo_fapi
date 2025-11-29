@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 class ConvoTester:
     """Test client for convo service."""
     
-    def __init__(self, base_url: str = "http://localhost:4060", api_prefix: str = "/api/v1"):
+    def __init__(self, base_url: str = "http://localhost:4466", api_prefix: str = "/api/v1"):
         self.base_url = base_url
         self.api_prefix = api_prefix
         self.token: Optional[str] = None
@@ -264,7 +264,7 @@ async def test_customer_support_flow(tester: ConvoTester):
     print("="*60)
     
     # Load test data
-    test_data_path = Path(__file__).parent.parent / "test_data" / "convos" / "customer_support_flow.json"
+    test_data_path = Path(__file__).parent.parent / "test_data" / "chatflows" / "simple_support_chatflow.json"
     
     with open(test_data_path, 'r') as f:
         convo_data = json.load(f)
@@ -348,7 +348,7 @@ async def test_simple_greeting_flow(tester: ConvoTester):
     print("="*60)
     
     # Load test data
-    test_data_path = Path(__file__).parent.parent / "test_data" / "convos" / "simple_greeting_flow.json"
+    test_data_path = Path(__file__).parent.parent / "test_data" / "chatflows" / "simple_greeting_flow.json"
     
     with open(test_data_path, 'r') as f:
         convo_data = json.load(f)

@@ -259,7 +259,7 @@ def create_app() -> FastAPI:
             "chat.html",
             {
                 "request": request,
-                "api_base_url": f"https://{settings.chat_host}{settings.api_prefix}",
+                "api_base_url": f"{settings.chat_host}{settings.api_prefix}",
                 "app_name": settings.app_name
             }
         )

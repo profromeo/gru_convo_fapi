@@ -41,8 +41,7 @@ class Settings(BaseSettings):
     mongodb_database: str = "gru_convo"
     mongodb_auth_database: str = "gru_convo"
     mongodb_test_database: str = "gru_convo"
-    mongodb_das_database: str = "das"
-    
+    mongodb_tog_database: str = "arb_togmatix_shop"
    
     # Environment tracking
     environment: Environment = Environment.DEVELOPMENT
@@ -50,8 +49,8 @@ class Settings(BaseSettings):
     # Properties that might be overridden by environment-specific settings
     debug: bool = True
     host: str = "0.0.0.0"
-    chat_host: str = "chat.grucode.dev"
-    port: int = 4061
+    chat_host: str = "http://localhost:4466"
+    port: int = 4466
     workers: int = 1
     allowed_origins: List[str] = ["*"]
     
@@ -65,7 +64,7 @@ class Settings(BaseSettings):
     require_email_verification: bool = False
     
     # Database connection
-    mongodb_url: str = 'mongodb://localhost:27017'
+    mongodb_url: str = 'mongodb://10.0.1.4:27017,10.0.0.4:27017,10.0.1.3:27017/?retryWrites=true&replicaSet=rs_togmatix_mdn&readPreference=primary&serverSelectionTimeoutMS=5000&connectTimeoutMS=10000'
     
     # Rate limiting
     rate_limit_per_minute: int = 60
@@ -125,7 +124,7 @@ class DevelopmentSettings(Settings):
     jwt_refresh_token_expire_days: int = 90
     
     # Development database
-    mongodb_url: str = 'mongodb://localhost:27017'
+    mongodb_url: str = 'mongodb://10.0.1.4:27017,10.0.0.4:27017,10.0.1.3:27017/?retryWrites=true&replicaSet=rs_togmatix_mdn&readPreference=primary&serverSelectionTimeoutMS=5000&connectTimeoutMS=10000'
     # More lenient rate limiting
     rate_limit_per_minute: int = 100
     rate_limit_burst: int = 20
@@ -159,7 +158,7 @@ class ProductionSettings(Settings):
     jwt_refresh_token_expire_days: int = 7     # 7 days
     
     # Production database (should be set via environment variables)
-    mongodb_url: str = "mongodb://localhost:27017"
+    mongodb_url: str = "mongodb://10.0.1.4:27017,10.0.0.4:27017,10.0.1.3:27017/?retryWrites=true&replicaSet=rs_togmatix_mdn&readPreference=primary&serverSelectionTimeoutMS=5000&connectTimeoutMS=10000"
     
     
     # Stricter rate limiting

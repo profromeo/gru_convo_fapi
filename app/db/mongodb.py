@@ -19,7 +19,7 @@ class MongoDBManager:
         self.client: Optional[AsyncIOMotorClient] = None
         self.database: Optional[AsyncIOMotorDatabase] = None  # Service database
         self.auth_database: Optional[AsyncIOMotorDatabase] = None  # Auth database
-        self.das_database: Optional[AsyncIOMotorDatabase] = None  # DAS database
+        self.tog_database: Optional[AsyncIOMotorDatabase] = None  # DAS database
 
     async def connect(self):
         """Initialize MongoDB connection."""
@@ -41,19 +41,19 @@ class MongoDBManager:
             if self.settings.is_testing:
                 service_database_name = self.settings.mongodb_test_database
                 auth_database_name = self.settings.mongodb_auth_database
-                das_database_name = self.settings.mongodb_das_database
+                tog_database_name = self.settings.mongodb_tog_database
             else:
                 service_database_name = self.settings.mongodb_database
                 auth_database_name =  self.settings.mongodb_auth_database
-                das_database_name = self.settings.mongodb_das_database
+                tog_database_name = self.settings.mongodb_tog_database
 
             self.database = self.client[service_database_name]
             self.auth_database = self.client[auth_database_name]
-            self.das_database = self.client[das_database_name]
+            self.tog_database = self.client[tog_database_name]
             
             self.logger.info(f"Service database: {service_database_name}")
             self.logger.info(f"Auth database: {auth_database_name}")
-            self.logger.info(f"DAS database: {das_database_name}")
+            self.logger.info(f"DAS database: {tog_database_name}")
             
             # Initialize auth collections
             await self._initialize_auth_collections()
@@ -74,11 +74,11 @@ class MongoDBManager:
             raise ServiceException("MongoDB service database not initialized")
         return self.database
 
-    def get_das_database(self) -> AsyncIOMotorDatabase:
+    def get_tog_database(self) -> AsyncIOMotorDatabase:
         """Get DAS MongoDB database."""
-        if self.das_database is None:
+        if self.tog_database is None:
             raise ServiceException("MongoDB DAS database not initialized")
-        return self.das_database
+        return self.tog_database
     
     def get_auth_database(self) -> AsyncIOMotorDatabase:
         """Get auth MongoDB database."""
@@ -132,7 +132,7 @@ class MongoDBManager:
             self.client = None
             self.database = None
             self.auth_database = None
-            self.das_database = None
+            self.tog_database = None
             self.logger.info("MongoDB connection closed")
 
     async def _initialize_auth_collections(self):
@@ -209,7 +209,7 @@ async def get_auth_database() -> AsyncIOMotorDatabase:
     return manager.get_auth_database()
 
 
-async def get_das_database() -> AsyncIOMotorDatabase:
+async def get_tog_database() -> AsyncIOMotorDatabase:
     """FastAPI dependency to get DAS database."""
     manager = await get_mongodb_manager()
-    return manager.get_das_database()
+    return manager.get_tog_database()
