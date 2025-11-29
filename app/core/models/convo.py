@@ -139,6 +139,9 @@ class ConvoDefinition(BaseModel):
     timeout_minutes: int = Field(default=30, description="Session timeout in minutes")
     max_retries: int = Field(default=3, description="Maximum retries for failed actions")
     
+    # Tenant tracking
+    tenant_uid: Optional[str] = Field(None, description="Tenant/company identifier for tracking and billing")
+    
     # Metadata
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -172,6 +175,7 @@ class ChatSession(BaseModel):
     session_id: str = Field(..., description="Unique session identifier")
     convo_id: str = Field(..., description="ID of the convo being executed")
     user_id: Optional[str] = Field(None, description="ID of the user")
+    tenant_uid: Optional[str] = Field(None, description="Tenant/company identifier for tracking and billing")
     
     current_node_id: str = Field(..., description="Current node in the flow")
     context: Dict[str, Any] = Field(default_factory=dict, description="Session context/variables")
@@ -194,6 +198,7 @@ class AIChatSession(BaseModel):
     """AI chat session model."""
     session_id: str = Field(..., description="Unique session identifier")
     user_id: Optional[str] = Field(None, description="User identifier")
+    tenant_uid: Optional[str] = Field(None, description="Tenant/company identifier for tracking and billing")
     title: Optional[str] = Field(None, description="Session title")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     last_used: datetime = Field(default_factory=datetime.utcnow)
@@ -226,6 +231,7 @@ class AIChatInteraction(BaseModel):
     """Model for logging AI chat interactions."""
     session_id: str = Field(..., description="Session identifier")
     user_id: str = Field(..., description="User identifier")
+    tenant_uid: Optional[str] = Field(None, description="Tenant/company identifier for tracking and billing")
     query: str = Field(..., description="User query")
     response: str = Field(..., description="AI response")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
@@ -246,6 +252,7 @@ class ChatRequest(BaseModel):
     session_id: Optional[str] = Field(None, description="Existing session ID (if continuing)")
     convo_id: str = Field(..., description="ID of the convo to use")
     user_id: Optional[str] = Field(None, description="User identifier")
+    tenant_uid: Optional[str] = Field(None, description="Tenant/company identifier for tracking and billing")
     message: Optional[str] = Field(None, description="User message/input")
     action: Optional[str] = Field(None, description="Specific action to perform")
     context: Dict[str, Any] = Field(default_factory=dict, description="Additional context")

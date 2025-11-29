@@ -15,6 +15,7 @@ class User(BaseModel):
     hashed_password: str
     role: List[str] = Field(default_factory=lambda: ["user"])  # Default to ["user"]
     function: List[str] = Field(default_factory=lambda: [])  # Default to []
+    tenant_uid: Optional[str] = Field(None, description="Tenant/company identifier")
     is_active: bool = True
     is_verified: bool = False
     created_at: datetime
@@ -36,6 +37,7 @@ class UserResponse(BaseModel):
     full_name: str
     role: List[str]
     function: List[str]
+    tenant_uid: Optional[str] = None
     is_active: bool
     is_verified: bool
     created_at: datetime

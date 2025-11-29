@@ -42,6 +42,25 @@ class ConvoService:
         # AI service configuration
         self.ai_service_url = self.settings.ai_service_url or "http://localhost:8001"
     
+    def _get_tenant_uid(self, provided_tenant_uid: Optional[str], user: Optional[Any] = None) -> Optional[str]:
+        """Get tenant_uid from provided value or extract from user context.
+        
+        Args:
+            provided_tenant_uid: Explicitly provided tenant_uid
+            user: User object that may contain tenant_uid
+            
+        Returns:
+            tenant_uid if found, None otherwise
+        """
+        if provided_tenant_uid:
+            return provided_tenant_uid
+        
+        # Try to extract from user object if available
+        if user and hasattr(user, 'tenant_uid'):
+            return user.tenant_uid
+        
+        return None
+    
     def _validate_convo(self, convo: ConvoDefinition) -> None:
         """Validate convo structure."""
         if not convo.id:
@@ -128,13 +147,16 @@ class ConvoService:
         self, 
         skip: int = 0, 
         limit: int = 100,
-        created_by: Optional[str] = None
+        created_by: Optional[str] = None,
+        tenant_uid: Optional[str] = None
     ) -> List[ConvoDefinition]:
         """List all convos with optional filtering."""
         try:
             query = {}
             if created_by:
                 query["created_by"] = created_by
+            if tenant_uid:
+                query["tenant_uid"] = tenant_uid
             
             cursor = self.convos_collection.find(query).skip(skip).limit(limit)
             convos = []
@@ -239,6 +261,7 @@ class ConvoService:
                 session_id=str(uuid.uuid4()),
                 convo_id=request.convo_id,
                 user_id=request.user_id,
+                tenant_uid=request.tenant_uid,
                 current_node_id=convo.start_node_id,
                 context=request.context or {},
                 history=[],
@@ -571,7 +594,7 @@ class ConvoService:
                     query_text = f"Context:\n{context_str}\n\nUser: {user_input}"
                 
                 # Save user message
-                await self._save_ai_chat_message(ai_session_id, "user", user_input)
+                await self._save_ai_chat_message(ai_session_id, "user", user_input, session.tenant_uid)
                 
                 # Call AI service
                 ai_response = await self._call_ai_service(
@@ -582,7 +605,7 @@ class ConvoService:
                 )
                 
                 # Save AI response
-                await self._save_ai_chat_message(ai_session_id, "assistant", ai_response)
+                await self._save_ai_chat_message(ai_session_id, "assistant", ai_response, session.tenant_uid)
                 
                 # Add to session history
                 session.history.append(ChatMessage(
@@ -1720,6 +1743,7 @@ class ConvoService:
             session = AIChatSession(
                 session_id=session_id,
                 user_id=final_user_id,
+                tenant_uid=request.metadata.get('tenant_uid') if request.metadata else None,
                 title=request.title or f"Chat Session {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
                 created_at=datetime.utcnow(),
                 last_used=datetime.utcnow(),
@@ -1832,7 +1856,8 @@ class ConvoService:
             await self._save_ai_chat_message(
                 session.session_id,
                 "user",
-                query.query
+                query.query,
+                session.tenant_uid
             )
             
             # Call AI service
@@ -1848,7 +1873,8 @@ class ConvoService:
             await self._save_ai_chat_message(
                 session.session_id,
                 "assistant",
-                ai_response
+                ai_response,
+                session.tenant_uid
             )
             
             # Update session last_used
@@ -2008,7 +2034,8 @@ class ConvoService:
         self,
         session_id: str,
         role: str,
-        content: str
+        content: str,
+        tenant_uid: Optional[str] = None
     ) -> None:
         """Save a message to AI chat history."""
         try:
@@ -2016,6 +2043,7 @@ class ConvoService:
                 "session_id": session_id,
                 "role": role,
                 "content": content,
+                "tenant_uid": tenant_uid,
                 "timestamp": datetime.utcnow()
             }
             

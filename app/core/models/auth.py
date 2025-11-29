@@ -39,6 +39,7 @@ class TokenPayload(BaseModel):
     email: str
     role: List[str] = []
     function: List[str] = []
+    tenant_uid: Optional[str] = None
     exp: datetime
     iat: datetime
     token_type: str = "access"

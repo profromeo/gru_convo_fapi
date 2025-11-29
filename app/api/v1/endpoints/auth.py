@@ -122,8 +122,8 @@ async def login(
         # Step 5: Create tokens
         logger.info("Step 5: Creating tokens...")
         try:
-            access_token = jwt_handler.create_access_token(user.user_id, user.email, user.role, user.function, user.live_authorization)
-            refresh_token = jwt_handler.create_refresh_token(user.user_id, user.email, user.role, user.function, user.live_authorization)
+            access_token = jwt_handler.create_access_token(user.user_id, user.email, user.role, user.function, user.live_authorization, user.tenant_uid)
+            refresh_token = jwt_handler.create_refresh_token(user.user_id, user.email, user.role, user.function, user.live_authorization, user.tenant_uid)
             logger.info("Step 5 SUCCESS: Tokens created")
             
             # Step 6: Update last login
@@ -245,8 +245,8 @@ async def login_register_session(
         # Step 5: Create tokens
         logger.info("Step 5: Creating tokens...")
         try:
-            access_token = jwt_handler.create_access_token(user.user_id, user.email, user.role, user.function, user.live_authorization)
-            refresh_token = jwt_handler.create_refresh_token(user.user_id, user.email, user.role, user.function, user.live_authorization)
+            access_token = jwt_handler.create_access_token(user.user_id, user.email, user.role, user.function, user.live_authorization, user.tenant_uid)
+            refresh_token = jwt_handler.create_refresh_token(user.user_id, user.email, user.role, user.function, user.live_authorization, user.tenant_uid)
             logger.info("Step 5 SUCCESS: Tokens created")
             
             # Step 6: Update last login
@@ -304,10 +304,10 @@ async def refresh_token(refresh_data: RefreshTokenRequest):
         
         access_token = jwt_handler.create_access_token(
             payload.sub, payload.email, payload.role, payload.function
-        , payload.live_authorization)
+        , payload.live_authorization, payload.tenant_uid)
         refresh_token = jwt_handler.create_refresh_token(
             payload.sub, payload.email, payload.role, payload.function
-        , payload.live_authorization)
+        , payload.live_authorization, payload.tenant_uid)
         
         return TokenResponse(
             access_token=access_token,

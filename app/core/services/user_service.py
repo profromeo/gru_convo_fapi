@@ -51,7 +51,7 @@ class UserService:
             self.logger.error(f"Error initializing user service: {e}")
             raise UserServiceError(f"Failed to initialize user service: {str(e)}")
     
-    async def create_user(self, email: str, password: str, full_name: str, role: List[str] = ["user"], function: List[str] = [], metadata: Dict[str, Any] = {}) -> User:
+    async def create_user(self, email: str, password: str, full_name: str, role: List[str] = ["user"], function: List[str] = [], tenant_uid: Optional[str] = None, metadata: Dict[str, Any] = {}) -> User:
         """Create new user with consistent ID handling."""
         try:
             # Use string UUID instead of MongoDB ObjectId for consistency
@@ -65,6 +65,7 @@ class UserService:
                 "hashed_password": hashed_password,
                 "role": role,
                 "function": function,
+                "tenant_uid": tenant_uid,
                 "is_active": True,
                 "is_verified": not self.settings.require_email_verification,
                 "created_at": datetime.utcnow(),
@@ -285,7 +286,8 @@ class UserService:
                        skip: int = 0, 
                        limit: int = 50, 
                        role: Optional[str] = None,
-                       is_active: Optional[bool] = None) -> List[User]:
+                       is_active: Optional[bool] = None,
+                       tenant_uid: Optional[str] = None) -> List[User]:
         """Get list of users with filtering and pagination."""
         try:
             # Build filter
@@ -294,6 +296,8 @@ class UserService:
                 filter_doc["role"] = role
             if is_active is not None:
                 filter_doc["is_active"] = is_active
+            if tenant_uid is not None:
+                filter_doc["tenant_uid"] = tenant_uid
             
             # Query with pagination
             cursor = self.users_collection.find(filter_doc).skip(skip).limit(limit).sort("created_at", -1)
@@ -305,7 +309,7 @@ class UserService:
             self.logger.error(f"Error getting users: {e}")
             raise UserServiceError(f"Failed to get users: {str(e)}")
     
-    async def count_users(self, role: Optional[str] = None, is_active: Optional[bool] = None) -> int:
+    async def count_users(self, role: Optional[str] = None, is_active: Optional[bool] = None, tenant_uid: Optional[str] = None) -> int:
         """Count users with filtering."""
         try:
             # Build filter
@@ -314,6 +318,8 @@ class UserService:
                 filter_doc["role"] = role
             if is_active is not None:
                 filter_doc["is_active"] = is_active
+            if tenant_uid is not None:
+                filter_doc["tenant_uid"] = tenant_uid
             
             return await self.users_collection.count_documents(filter_doc)
             

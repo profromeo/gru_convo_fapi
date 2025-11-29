@@ -58,6 +58,9 @@ class MongoDBManager:
             # Initialize auth collections
             await self._initialize_auth_collections()
             
+            # Initialize service collections
+            await self._initialize_service_collections()
+            
         except Exception as e:
             self.logger.error(f"MongoDB connection failed: {e}")
             raise ServiceException(f"MongoDB initialization failed: {str(e)}")
@@ -156,11 +159,93 @@ class MongoDBManager:
             # Created at index for sorting
             await users_collection.create_index("created_at")
             
-            self.logger.info("Auth collections initialized")
+            # Tenant UID index for filtering users by tenant
+            await users_collection.create_index("tenant_uid")
+            
+            # Create tenants collection indexes
+            tenants_collection = self.auth_database["tenants"]
+            
+            # Tenant UID index (unique)
+            await tenants_collection.create_index("tenant_uid", unique=True)
+            
+            # Company name index for queries
+            await tenants_collection.create_index("company_name")
+            
+            # Contact email index
+            await tenants_collection.create_index("contact_email")
+            
+            # Active status index
+            await tenants_collection.create_index("is_active")
+            
+            # Created at index for sorting
+            await tenants_collection.create_index("created_at")
+            
+            self.logger.info("Auth collections initialized with tenant indexes")
             
         except Exception as e:
             self.logger.error(f"Auth collections initialization failed: {e}")
             raise ServiceException(f"Auth collections initialization failed: {str(e)}")
+    
+    
+    async def _initialize_service_collections(self):
+        """Initialize service database collections and indexes."""
+        try:
+            # Create chat_convos collection indexes
+            convos_collection = self.database["chat_convos"]
+            
+            # Convo ID index (unique)
+            await convos_collection.create_index("id", unique=True)
+            
+            # Tenant UID index for filtering
+            await convos_collection.create_index("tenant_uid")
+            
+            # Created by index
+            await convos_collection.create_index("created_by")
+            
+            # Create chat_sessions collection indexes
+            sessions_collection = self.database["chat_sessions"]
+            
+            # Session ID index (unique)
+            await sessions_collection.create_index("session_id", unique=True)
+            
+            # Tenant UID index for filtering
+            await sessions_collection.create_index("tenant_uid")
+            
+            # User ID index
+            await sessions_collection.create_index("user_id")
+            
+            # Convo ID index
+            await sessions_collection.create_index("convo_id")
+            
+            # Create ai_chat_sessions collection indexes
+            ai_sessions_collection = self.database["ai_chat_sessions"]
+            
+            # Session ID index (unique)
+            await ai_sessions_collection.create_index("session_id", unique=True)
+            
+            # Tenant UID index for filtering
+            await ai_sessions_collection.create_index("tenant_uid")
+            
+            # User ID index
+            await ai_sessions_collection.create_index("user_id")
+            
+            # Create ai_chat_history collection indexes
+            ai_history_collection = self.database["ai_chat_history"]
+            
+            # Session ID index for querying history
+            await ai_history_collection.create_index("session_id")
+            
+            # Tenant UID index for filtering
+            await ai_history_collection.create_index("tenant_uid")
+            
+            # Timestamp index for sorting
+            await ai_history_collection.create_index("timestamp")
+            
+            self.logger.info("Service collections initialized with tenant_uid indexes")
+            
+        except Exception as e:
+            self.logger.error(f"Service collections initialization failed: {e}")
+            raise ServiceException(f"Service collections initialization failed: {str(e)}")
     
     async def _create_default_admin_user(self):
         """Create default admin user if none exists."""

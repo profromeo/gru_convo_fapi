@@ -42,6 +42,10 @@ async def create_convo(
         # Set created_by from current user
         convo.created_by = current_user.user_id
         
+        # Set tenant_uid from user context if not provided
+        if not convo.tenant_uid:
+            convo.tenant_uid = service._get_tenant_uid(None, current_user)
+        
         result = await service.create_convo(convo)
         logger.info(f"User {current_user.email} created convo: {convo.id}")
         return result
@@ -57,6 +61,7 @@ async def create_convo(
 async def list_convos(
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
+    tenant_uid: Optional[str] = Query(None, description="Filter by tenant/company ID"),
     service: ConvoService = Depends(get_convo_service),
     current_user: User = Depends(get_current_user)
 ):
@@ -66,7 +71,7 @@ async def list_convos(
     Requires authentication.
     """
     try:
-        convos = await service.list_convos(skip=skip, limit=limit)
+        convos = await service.list_convos(skip=skip, limit=limit, tenant_uid=tenant_uid)
         return convos
     except Exception as e:
         logger.error(f"Error listing convos: {e}")
@@ -169,6 +174,10 @@ async def start_chat_session(
         # Set user_id from current user if not provided
         if not request.user_id:
             request.user_id = current_user.user_id
+        
+        # Set tenant_uid from user context if not provided
+        if not request.tenant_uid:
+            request.tenant_uid = service._get_tenant_uid(None, current_user)
         
         response = await service.start_chat_session(request)
         logger.info(f"User {current_user.email} started chat session: {response.session_id}")

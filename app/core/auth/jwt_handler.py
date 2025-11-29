@@ -21,7 +21,7 @@ class JWTHandler:
         self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         self.logger = logging.getLogger(__name__)
 
-    def create_access_token(self, user_id: str, email: str, role: List[str], function: List[str], live_authorization: bool ) -> str:
+    def create_access_token(self, user_id: str, email: str, role: List[str], function: List[str], live_authorization: bool, tenant_uid: Optional[str] = None) -> str:
         """Create access token."""
         now = datetime.utcnow()
         expire = now + timedelta(minutes=self.settings.jwt_access_token_expire_minutes)
@@ -31,6 +31,7 @@ class JWTHandler:
             "email": email,
             "role": role,
             "function": function,
+            "tenant_uid": tenant_uid,
             "exp": expire,
             "iat": now,
             "token_type": "access",
@@ -43,7 +44,7 @@ class JWTHandler:
             algorithm=self.settings.jwt_algorithm
         )
     
-    def create_refresh_token(self, user_id: str, email: str, role: List[str], function: List[str], live_authorization: bool) -> str:
+    def create_refresh_token(self, user_id: str, email: str, role: List[str], function: List[str], live_authorization: bool, tenant_uid: Optional[str] = None) -> str:
         """Create refresh token."""
         now = datetime.utcnow()
         expire = now + timedelta(days=self.settings.jwt_refresh_token_expire_days)
@@ -53,6 +54,7 @@ class JWTHandler:
             "email": email,
             "role": role,
             "function": function,
+            "tenant_uid": tenant_uid,
             "exp": expire,
             "iat": now,
             "token_type": "refresh",
