@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     # Properties that might be overridden by environment-specific settings
     debug: bool = True
     host: str = "0.0.0.0"
-    chat_host: str = "http://localhost:4466"
+    chat_host: str = "https://convo.grucode.dev"
     port: int = 4466
     workers: int = 1
     allowed_origins: List[str] = ["*"]

@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 
@@ -10,19 +10,35 @@ from app.core.services.user_service import get_user_service
 import logging
 
 logger = logging.getLogger(__name__)
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
 async def get_current_user_payload(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ) -> TokenPayload:
     """Get current user from JWT token with debugging."""
     try:
-        token = credentials.credentials
-        logger.info(f"Received token: {token[:20]}...")
+        token = None
+        if credentials:
+            token = credentials.credentials
+        elif "access_token" in request.cookies:
+            token = request.cookies["access_token"]
+            # Handle Bearer prefix if present in cookie (unlikely but safe)
+            if token.startswith("Bearer "):
+                token = token.split(" ")[1]
+        
+        if not token:
+             raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Not authenticated",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # logger.info(f"Received token: {token[:20]}...")
         
         payload = jwt_handler.verify_token(token, "access")
-        logger.info(f"Token decoded successfully. User ID: {payload.sub}, Email: {payload.email}")
+        # logger.info(f"Token decoded successfully. User ID: {payload.sub}, Email: {payload.email}")
         
         return payload
     except JWTError as e:

@@ -1,0 +1,1611 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convo Editor</title>
+    <style>
+        :root {
+            --bg-color: #1e1e2e;
+            --sidebar-bg: #252537;
+            --header-bg: #252537;
+            --text-color: #cdd6f4;
+            --accent-color: #89b4fa;
+            --node-bg: #313244;
+            --node-border: #45475a;
+            --connection-color: #a6adc8;
+            --grid-color: #313244;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Header */
+        header {
+            height: auto;
+            min-height: 60px;
+            background-color: var(--header-bg);
+            border-bottom: 1px solid var(--node-border);
+            display: flex;
+            align-items: center;
+            padding: 10px 20px;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+            z-index: 10;
+        }
+
+        h1 {
+            font-size: 1.2rem;
+            margin: 0;
+            color: var(--accent-color);
+            white-space: nowrap;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .separator {
+            width: 1px;
+            height: 24px;
+            background-color: var(--node-border);
+            margin: 0 5px;
+        }
+
+        button {
+            background-color: var(--node-bg);
+            border: 1px solid var(--node-border);
+            color: var(--text-color);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--accent-color);
+            color: var(--bg-color);
+        }
+
+        /* Main Layout */
+        main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Canvas */
+        #canvas-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background-image: radial-gradient(var(--grid-color) 1px, transparent 1px);
+            background-size: 20px 20px;
+            cursor: grab;
+        }
+
+        #canvas-container:active {
+            cursor: grabbing;
+        }
+
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 5000px;
+            /* Large canvas */
+            height: 5000px;
+            transform-origin: 0 0;
+        }
+
+        /* Nodes */
+        .node {
+            position: absolute;
+            width: 250px;
+            background-color: var(--node-bg);
+            border: 1px solid var(--node-border);
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            user-select: none;
+            transition: box-shadow 0.2s, border-color 0.2s;
+        }
+
+        .node.selected {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px var(--accent-color);
+        }
+
+        .node-header {
+            padding: 10px;
+            background-color: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--node-border);
+            border-radius: 8px 8px 0 0;
+            font-weight: bold;
+            cursor: move;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .node-body {
+            padding: 10px;
+            font-size: 0.9rem;
+            color: #a6adc8;
+        }
+
+        .node-ports {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 10px 10px;
+        }
+
+        .port {
+            width: 12px;
+            height: 12px;
+            background-color: var(--connection-color);
+            border-radius: 50%;
+            cursor: crosshair;
+            transition: transform 0.2s;
+        }
+
+        .port:hover {
+            transform: scale(1.2);
+            background-color: var(--accent-color);
+        }
+
+        .port.input {
+            align-self: flex-start;
+        }
+
+        .port.output {
+            align-self: flex-end;
+        }
+
+        /* Connections (SVG) */
+        #connections {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            /* Let clicks pass through to canvas */
+            z-index: 0;
+        }
+
+        path {
+            fill: none;
+            stroke: var(--connection-color);
+            stroke-width: 2;
+            pointer-events: stroke;
+            /* Allow clicking on the line itself */
+            cursor: pointer;
+        }
+
+        path:hover {
+            stroke: var(--accent-color);
+            stroke-width: 3;
+        }
+
+        /* Sidebar */
+        aside {
+            width: 400px;
+            background-color: var(--sidebar-bg);
+            border-left: 1px solid var(--node-border);
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 5;
+        }
+
+        aside h2 {
+            font-size: 1rem;
+            margin: 0 0 10px 0;
+            color: var(--accent-color);
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        label {
+            font-size: 0.8rem;
+            color: #a6adc8;
+        }
+
+        input,
+        textarea,
+        select {
+            background-color: var(--bg-color);
+            border: 1px solid var(--node-border);
+            color: var(--text-color);
+            padding: 8px;
+            border-radius: 4px;
+            font-family: inherit;
+        }
+
+        input:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        /* Utilities */
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>Convo Editor</h1>
+        <div class="header-controls">
+            <button id="btn-load">Load JSON</button>
+            <button id="btn-save">Save JSON</button>
+            <div class="separator"></div>
+            <button id="btn-load-db">Load DB</button>
+            <button id="btn-save-db">Save DB</button>
+            <button id="btn-save-as-new">Save As New</button>
+            <div class="separator"></div>
+            <button id="btn-auto-arrange">Auto Arrange</button>
+            <select id="add-node-select">
+                <option value="" selected>+ Add Node</option>
+                <option value="collect_input">Collect Input</option>
+                <option value="menu">Menu</option>
+                <option value="ai_chat">AI Chat</option>
+                <option value="message">Message</option>
+            </select>
+        </div>
+    </header>
+
+    <main>
+        <div id="canvas-container">
+            <div id="canvas">
+                <svg id="connections"></svg>
+                <!-- Nodes will be injected here -->
+            </div>
+        </div>
+
+        <aside id="property-editor">
+            <h2>Properties</h2>
+            <div id="properties-content">
+                <p style="color: #6c7086; font-style: italic;">Select a node to edit properties.</p>
+            </div>
+        </aside>
+    </main>
+
+    <!-- DB Load Modal -->
+    <div id="db-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2>Select Chatflow</h2>
+            <ul id="flow-list">
+                <!-- Flows will be listed here -->
+            </ul>
+        </div>
+    </div>
+
+    <style>
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background-color: #1e1e2e;
+            margin: 10% auto;
+            padding: 20px;
+            border: 1px solid #45475a;
+            width: 50%;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+
+        .close-modal {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close-modal:hover,
+        .close-modal:focus {
+            color: #fff;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        #flow-list {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        #flow-list li {
+            padding: 10px;
+            border-bottom: 1px solid #313244;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #flow-list li:hover {
+            background-color: #313244;
+        }
+
+        #flow-list li .flow-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        #flow-list li .flow-name {
+            font-weight: bold;
+            color: #cdd6f4;
+        }
+
+        #flow-list li .flow-id {
+            font-size: 0.8em;
+            color: #a6adc8;
+        }
+    </style>
+
+    <!-- Login Modal Removed -->
+
+    <script>
+        // --- State ---
+        let nodes = [];
+        let connections = []; // { from: nodeId, to: nodeId, label: string }
+        let flowMetadata = {
+            id: "new_flow",
+            name: "New Flow",
+            description: "",
+            version: "1.0",
+            start_node_id: "",
+            timeout_minutes: 60,
+            max_retries: 3,
+            tenant_uid: "",
+            tags: []
+        };
+        let selectedNodeId = null;
+        let scale = 1;
+        let panX = 0;
+        let panY = 0;
+        let isDraggingNode = false;
+        let isPanning = false;
+        let dragStartX, dragStartY;
+        let draggedNodeId = null;
+
+        // Connection State
+        let isConnecting = false;
+        let connectionStartNodeId = null;
+        let tempConnectionPath = null;
+
+        // API Config
+        const apiBaseUrl = '{{ api_base_url }}';
+        // Auth handled by server-side cookies now
+
+        // --- DOM Elements ---
+        const canvas = document.getElementById('canvas');
+        const connectionsSvg = document.getElementById('connections');
+        const propertiesContent = document.getElementById('properties-content');
+
+        const canvasContainer = document.getElementById('canvas-container');
+        const dbModal = document.getElementById('db-modal');
+        const flowList = document.getElementById('flow-list');
+        const closeModalBtn = document.querySelector('.close-modal');
+
+        // --- Initialization ---
+        function init() {
+            // Setup Event Listeners
+            document.getElementById('btn-load').addEventListener('click', () => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.json';
+                input.onchange = handleFileUpload;
+                input.click();
+            });
+            document.getElementById('btn-save').addEventListener('click', saveChatflowFile);
+
+            document.getElementById('btn-load-db').addEventListener('click', openDbLoadModal);
+            document.getElementById('btn-save-db').addEventListener('click', saveChatflowToDb);
+            document.getElementById('btn-save-as-new').addEventListener('click', saveAsNewFlow);
+
+            document.getElementById('btn-auto-arrange').addEventListener('click', autoArrange);
+            document.getElementById('add-node-select').addEventListener('change', (e) => {
+                if (e.target.value) {
+                    addNode(e.target.value);
+                    e.target.value = ""; // Reset
+                }
+            });
+
+            closeModalBtn.addEventListener('click', () => dbModal.style.display = "none");
+            window.addEventListener('click', (e) => {
+                if (e.target == dbModal) {
+                    dbModal.style.display = "none";
+                }
+            });
+
+            // Canvas Panning & Connection Dragging
+            canvasContainer.addEventListener('mousedown', (e) => {
+                // If clicking on a port, start connecting
+                if (e.target.classList.contains('port') && e.target.classList.contains('output')) {
+                    const nodeEl = e.target.closest('.node');
+                    if (nodeEl) {
+                        startConnection(nodeEl.dataset.id, e);
+                        return;
+                    }
+                }
+
+                if (e.target === canvasContainer || e.target === canvas || e.target.tagName === 'svg') {
+                    isPanning = true;
+                    dragStartX = e.clientX - panX;
+                    dragStartY = e.clientY - panY;
+                    canvasContainer.style.cursor = 'grabbing';
+                    // Deselect if clicking empty space
+                    selectNode(null);
+                }
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (isPanning) {
+                    panX = e.clientX - dragStartX;
+                    panY = e.clientY - dragStartY;
+                    updateCanvasTransform();
+                } else if (isDraggingNode && draggedNodeId) {
+                    const node = nodes.find(n => n.id === draggedNodeId);
+                    if (node) {
+                        const dx = (e.clientX - dragStartX) / scale;
+                        const dy = (e.clientY - dragStartY) / scale;
+                        node.x += dx;
+                        node.y += dy;
+                        dragStartX = e.clientX;
+                        dragStartY = e.clientY;
+                        renderNodes(); // Re-render to update position
+                        renderConnections();
+                    }
+                } else if (isConnecting) {
+                    updateTempConnection(e);
+                }
+            });
+
+            window.addEventListener('mouseup', (e) => {
+                if (isConnecting) {
+                    // Check if dropped on an input port
+                    if (e.target.classList.contains('port') && e.target.classList.contains('input')) {
+                        const nodeEl = e.target.closest('.node');
+                        if (nodeEl) {
+                            finishConnection(nodeEl.dataset.id);
+                        }
+                    }
+                    cancelConnection();
+                }
+
+                isPanning = false;
+                isDraggingNode = false;
+                draggedNodeId = null;
+                canvasContainer.style.cursor = 'grab';
+            });
+
+            // Zoom (Wheel)
+            canvasContainer.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const zoomSensitivity = 0.001;
+                const delta = -e.deltaY * zoomSensitivity;
+                const newScale = Math.min(Math.max(0.1, scale + delta), 3);
+                scale = newScale;
+                updateCanvasTransform();
+            });
+
+            // Initial Render
+            renderProperties(null);
+        }
+
+        function updateCanvasTransform() {
+            canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+            canvas.appendChild(connectionsSvg);
+        }
+
+        // --- Auth ---
+        // Auth is now handled by server-side cookies.
+        // We can just make fetch requests normally, and the browser will send the cookie.
+
+        async function authenticatedFetch(url, options = {}) {
+            // No need to manually attach Authorization header if using cookies
+            // But if we wanted to support both, we could check if we have a token variable
+            // For now, let's assume cookies handle it.
+
+            // However, we might want to handle 401s to redirect to login
+            let response = await fetch(url, options);
+
+            if (response.status === 401) {
+                window.location.href = '/login';
+                throw new Error('Session expired. Please login again.');
+            }
+
+            return response;
+        }
+
+        // --- Core Logic ---
+
+        function addNode(type) {
+            const id = type + '_' + Date.now();
+            const newNode = {
+                id: id,
+                type: type,
+                name: 'New ' + type,
+                x: 100 + Math.random() * 50 - panX, // Adjust for pan to spawn in view
+                y: 100 + Math.random() * 50 - panY,
+                data: {
+                    id: id,
+                    type: type,
+                    name: 'New ' + type,
+                    transitions: []
+                }
+            };
+
+            // Default Data
+            if (type === 'collect_input') {
+                newNode.data.message = "Please enter...";
+                newNode.data.input_type = "text";
+                newNode.data.collect_input = true;
+            } else if (type === 'menu') {
+                newNode.data.message = "Select an option:";
+                newNode.data.collect_input = true;
+                newNode.data.input_type = "text";
+            } else if (type === 'message') {
+                newNode.data.message = "Message text...";
+                newNode.data.collect_input = false;
+            } else if (type === 'ai_chat') {
+                newNode.data.message = "AI Assistant is listening...";
+                newNode.data.collect_input = true;
+                newNode.data.input_type = "text";
+                newNode.data.ai_config = {
+                    llm_model: "qwen2.5:7b-instruct-q5_K_S",
+                    system_prompt: "",
+                    max_history_messages: 10,
+                    include_chat_history: true
+                };
+            }
+
+            nodes.push(newNode);
+            renderNodes();
+            selectNode(id);
+        }
+
+        function deleteNode(id) {
+            if (!confirm('Are you sure you want to delete this node?')) return;
+
+            // Remove node
+            nodes = nodes.filter(n => n.id !== id);
+
+            // Remove connections involving this node
+            connections = connections.filter(c => c.from !== id && c.to !== id);
+
+            // Remove transitions in other nodes pointing to this node
+            nodes.forEach(n => {
+                if (n.data.transitions) {
+                    n.data.transitions = n.data.transitions.filter(t => t.target_node_id !== id);
+                }
+            });
+
+            // Check start node
+            if (flowMetadata.start_node_id === id) {
+                flowMetadata.start_node_id = "";
+            }
+
+            selectNode(null);
+            renderNodes();
+            renderConnections();
+        }
+
+        function renderNodes() {
+            const existingNodes = document.querySelectorAll('.node');
+            existingNodes.forEach(el => el.remove());
+
+            nodes.forEach(node => {
+                const el = document.createElement('div');
+                el.className = `node ${selectedNodeId === node.id ? 'selected' : ''}`;
+                el.style.left = `${node.x}px`;
+                el.style.top = `${node.y}px`;
+                el.dataset.id = node.id;
+
+                el.innerHTML = `
+                <div class="node-header">
+                    <span>${node.data.name || node.name}</span>
+                    <span style="font-size: 0.7em; opacity: 0.7;">${node.type}</span>
+                </div>
+                <div class="node-body">
+                    ${getNodeSummary(node)}
+                </div>
+                <div class="node-ports">
+                    <div class="port input" title="Input"></div>
+                    <div class="port output" title="Output"></div>
+                </div>
+            `;
+
+                const header = el.querySelector('.node-header');
+                header.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
+                    isDraggingNode = true;
+                    draggedNodeId = node.id;
+                    dragStartX = e.clientX;
+                    dragStartY = e.clientY;
+                    selectNode(node.id);
+                });
+
+                canvas.appendChild(el);
+            });
+        }
+
+        function getNodeSummary(node) {
+            if (node.data.message) {
+                return node.data.message.substring(0, 30) + (node.data.message.length > 30 ? '...' : '');
+            }
+            return '';
+        }
+
+        // --- Connections ---
+
+        function startConnection(nodeId, e) {
+            isConnecting = true;
+            connectionStartNodeId = nodeId;
+
+            // Create temp path
+            tempConnectionPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            tempConnectionPath.setAttribute('stroke', '#89b4fa');
+            tempConnectionPath.setAttribute('stroke-width', '2');
+            tempConnectionPath.setAttribute('fill', 'none');
+            tempConnectionPath.setAttribute('stroke-dasharray', '5,5');
+            connectionsSvg.appendChild(tempConnectionPath);
+
+            updateTempConnection(e);
+        }
+
+        function updateTempConnection(e) {
+            if (!tempConnectionPath) return;
+
+            const startNode = nodes.find(n => n.id === connectionStartNodeId);
+            if (!startNode) return;
+
+            const startX = startNode.x + 250;
+            const startY = startNode.y + 40;
+
+            // Calculate mouse pos relative to canvas
+            const rect = canvas.getBoundingClientRect();
+            const endX = (e.clientX - rect.left) / scale;
+            const endY = (e.clientY - rect.top) / scale;
+
+            const d = `M ${startX} ${startY} L ${endX} ${endY}`;
+            tempConnectionPath.setAttribute('d', d);
+        }
+
+        function finishConnection(targetNodeId) {
+            if (connectionStartNodeId === targetNodeId) return; // No self loops for now
+
+            // Add connection
+            connections.push({
+                from: connectionStartNodeId,
+                to: targetNodeId,
+                label: 'Next'
+            });
+
+            // Update Node Data (transitions)
+            const sourceNode = nodes.find(n => n.id === connectionStartNodeId);
+            if (sourceNode) {
+                if (!sourceNode.data.transitions) sourceNode.data.transitions = [];
+                sourceNode.data.transitions.push({
+                    target_node_id: targetNodeId,
+                    label: 'Next'
+                });
+            }
+
+            renderConnections();
+        }
+
+        function cancelConnection() {
+            isConnecting = false;
+            connectionStartNodeId = null;
+            if (tempConnectionPath) {
+                tempConnectionPath.remove();
+                tempConnectionPath = null;
+            }
+        }
+
+        function renderConnections() {
+            connectionsSvg.innerHTML = '';
+
+            connections.forEach((conn, index) => {
+                const fromNode = nodes.find(n => n.id === conn.from);
+                const toNode = nodes.find(n => n.id === conn.to);
+
+                if (!fromNode || !toNode) return;
+
+                const startX = fromNode.x + 250;
+                const startY = fromNode.y + 40;
+                const endX = toNode.x;
+                const endY = toNode.y + 40;
+
+                const c1x = startX + 50;
+                const c1y = startY;
+                const c2x = endX - 50;
+                const c2y = endY;
+
+                const d = `M ${startX} ${startY} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${endX} ${endY}`;
+
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('d', d);
+                path.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (confirm('Delete connection?')) {
+                        connections.splice(index, 1);
+                        // Also remove from node data
+                        const sNode = nodes.find(n => n.id === conn.from);
+                        if (sNode && sNode.data.transitions) {
+                            sNode.data.transitions = sNode.data.transitions.filter(t => t.target_node_id !== conn.to);
+                        }
+                        renderConnections();
+                    }
+                });
+                connectionsSvg.appendChild(path);
+            });
+        }
+
+        // --- Property Editor ---
+
+        function selectNode(id) {
+            selectedNodeId = id;
+            renderNodes();
+            renderProperties(id);
+        }
+
+        function renderProperties(id) {
+            const node = nodes.find(n => n.id === id);
+
+            // Render Flow Metadata if no node selected
+            if (!node) {
+                renderFlowProperties();
+                return;
+            }
+
+            const data = node.data;
+            let html = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 style="margin: 0;">Node Properties</h3>
+                <button onclick="deleteNode('${node.id}')" style="background-color: #f38ba8; color: #1e1e2e; padding: 4px 8px; font-size: 0.8rem;">Delete</button>
+            </div>
+            <div class="form-group">
+                <label>ID</label>
+                <input type="text" value="${data.id}" onchange="updateNodeDataField('${node.id}', 'id', this.value)">
+            </div>
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" value="${data.name || ''}" onchange="updateNodeDataField('${node.id}', 'name', this.value)">
+            </div>
+            <div class="form-group">
+                <label>Message</label>
+                <textarea onchange="updateNodeDataField('${node.id}', 'message', this.value)">${data.message || ''}</textarea>
+            </div>
+        `;
+
+            // Type Specific Fields
+            if (node.type === 'collect_input') {
+                html += `
+                    <div class="form-group">
+                        <label>Input Type</label>
+                        <select onchange="updateNodeDataField('${node.id}', 'input_type', this.value)">
+                            <option value="text" ${data.input_type === 'text' ? 'selected' : ''}>Text</option>
+                            <option value="email" ${data.input_type === 'email' ? 'selected' : ''}>Email</option>
+                            <option value="number" ${data.input_type === 'number' ? 'selected' : ''}>Number</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Input Field Name</label>
+                        <input type="text" value="${data.input_field || ''}" onchange="updateNodeDataField('${node.id}', 'input_field', this.value)">
+                    </div>
+                    <h4 style="margin-top: 10px; margin-bottom: 5px;">Validations</h4>
+                    ${data.validations && data.validations.length > 0 ? data.validations.map((v, i) => `
+                        <div style="border: 1px solid #45475a; padding: 5px; margin-bottom: 5px; border-radius: 4px; background-color: rgba(137, 180, 250, 0.03);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                                <strong style="font-size: 0.8rem;">${v.type}</strong>
+                                <button onclick="deleteValidation('${node.id}', ${i})" style="background-color: #f38ba8; color: #1e1e2e; padding: 2px 6px; font-size: 0.7rem;">Delete</button>
+                            </div>
+                            <div class="form-group">
+                                <label>Type</label>
+                                <select onchange="updateValidationField('${node.id}', ${i}, 'type', this.value)">
+                                    <option value="required" ${v.type === 'required' ? 'selected' : ''}>Required</option>
+                                    <option value="email" ${v.type === 'email' ? 'selected' : ''}>Email</option>
+                                    <option value="number" ${v.type === 'number' ? 'selected' : ''}>Number</option>
+                                    <option value="length" ${v.type === 'length' ? 'selected' : ''}>Length</option>
+                                    <option value="regex" ${v.type === 'regex' ? 'selected' : ''}>Regex</option>
+                                </select>
+                            </div>
+                            ${v.type === 'length' ? `
+                                <div class="form-group">
+                                    <label>Min Length</label>
+                                    <input type="number" value="${v.params?.min || ''}" onchange="updateValidationParam('${node.id}', ${i}, 'min', parseInt(this.value))">
+                                </div>
+                                <div class="form-group">
+                                    <label>Max Length</label>
+                                    <input type="number" value="${v.params?.max || ''}" onchange="updateValidationParam('${node.id}', ${i}, 'max', parseInt(this.value))">
+                                </div>
+                            ` : ''}
+                            ${v.type === 'regex' ? `
+                                <div class="form-group">
+                                    <label>Pattern</label>
+                                    <input type="text" value="${v.params?.pattern || ''}" onchange="updateValidationParam('${node.id}', ${i}, 'pattern', this.value)">
+                                </div>
+                            ` : ''}
+                            <div class="form-group">
+                                <label>Error Message</label>
+                                <textarea style="min-height: 40px;" onchange="updateValidationField('${node.id}', ${i}, 'error_message', this.value)">${v.error_message || ''}</textarea>
+                            </div>
+                        </div>
+                    `).join('') : '<p style="font-size: 0.8rem; color: #6c7086;">No validations defined.</p>'}
+                    <button onclick="addValidation('${node.id}')" style="width: 100%; margin-top: 5px; background-color: var(--accent-color); color: var(--bg-color); font-size: 0.85rem;">+ Add Validation</button>
+                `;
+            } else if (node.type === 'message') {
+                html += `
+                    <div class="form-group">
+                        <label>Collect Input</label>
+                        <select onchange="updateNodeDataField('${node.id}', 'collect_input', this.value === 'true')">
+                            <option value="true" ${data.collect_input ? 'selected' : ''}>Yes</option>
+                            <option value="false" ${!data.collect_input ? 'selected' : ''}>No</option>
+                        </select>
+                    </div>
+                    ${data.collect_input ? `
+                    <div class="form-group">
+                        <label>Input Type</label>
+                        <select onchange="updateNodeDataField('${node.id}', 'input_type', this.value)">
+                            <option value="text" ${data.input_type === 'text' ? 'selected' : ''}>Text</option>
+                            <option value="email" ${data.input_type === 'email' ? 'selected' : ''}>Email</option>
+                            <option value="number" ${data.input_type === 'number' ? 'selected' : ''}>Number</option>
+                        </select>
+                    </div>
+                    ` : ''}
+                    <div class="form-group">
+                        <label>Default Transition (Node ID)</label>
+                        <input type="text" value="${data.default_transition || ''}" onchange="updateNodeDataField('${node.id}', 'default_transition', this.value)">
+                        <small style="color: #6c7086;">Fallback node if no condition matches</small>
+                    </div>
+                `;
+            } else if (node.type === 'menu') {
+                html += `
+                    <div class="form-group">
+                        <label>Collect Input</label>
+                        <select onchange="updateNodeDataField('${node.id}', 'collect_input', this.value === 'true')">
+                            <option value="true" ${data.collect_input !== false ? 'selected' : ''}>Yes</option>
+                            <option value="false" ${data.collect_input === false ? 'selected' : ''}>No</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Input Type</label>
+                        <select onchange="updateNodeDataField('${node.id}', 'input_type', this.value)">
+                            <option value="text" ${data.input_type === 'text' || !data.input_type ? 'selected' : ''}>Text</option>
+                            <option value="email" ${data.input_type === 'email' ? 'selected' : ''}>Email</option>
+                            <option value="number" ${data.input_type === 'number' ? 'selected' : ''}>Number</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Default Transition (Node ID)</label>
+                        <input type="text" value="${data.default_transition || ''}" onchange="updateNodeDataField('${node.id}', 'default_transition', this.value)">
+                        <small style="color: #6c7086;">Fallback node if no condition matches</small>
+                    </div>
+                `;
+            } else if (node.type === 'ai_chat') {
+                html += `
+                    <div class="form-group">
+                        <label>System Prompt</label>
+                        <textarea style="height: 100px;" onchange="updateAIConfig('${node.id}', 'system_prompt', this.value)">${data.ai_config?.system_prompt || ''}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>LLM Model</label>
+                        <input type="text" value="${data.ai_config?.llm_model || ''}" onchange="updateAIConfig('${node.id}', 'llm_model', this.value)">
+                    </div>
+                    <div class="form-group">
+                        <label>Max History Messages</label>
+                        <input type="number" value="${data.ai_config?.max_history_messages || 10}" onchange="updateAIConfig('${node.id}', 'max_history_messages', parseInt(this.value))">
+                    </div>
+                    <div class="form-group">
+                        <label>Include Chat History</label>
+                        <select onchange="updateAIConfig('${node.id}', 'include_chat_history', this.value === 'true')">
+                            <option value="true" ${data.ai_config?.include_chat_history !== false ? 'selected' : ''}>Yes</option>
+                            <option value="false" ${data.ai_config?.include_chat_history === false ? 'selected' : ''}>No</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Context Variables (comma-separated)</label>
+                        <input type="text" value="${data.ai_config?.context_variables?.join(', ') || ''}" onchange="updateAIConfig('${node.id}', 'context_variables', this.value.split(',').map(s => s.trim()).filter(s => s))">
+                        <small style="color: #6c7086;">Variables to include in AI context</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Exit Keywords (comma-separated)</label>
+                        <input type="text" value="${data.ai_config?.exit_keywords?.join(', ') || ''}" onchange="updateAIConfig('${node.id}', 'exit_keywords', this.value.split(',').map(s => s.trim()).filter(s => s))">
+                        <small style="color: #6c7086;">Keywords that trigger exit from AI chat</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Exit Node ID</label>
+                        <input type="text" value="${data.ai_config?.exit_node_id || ''}" onchange="updateAIConfig('${node.id}', 'exit_node_id', this.value)">
+                        <small style="color: #6c7086;">Node to transition to on exit keyword</small>
+                    </div>
+                `;
+            }
+
+            // Transitions List
+            html += `<h3>Transitions</h3>`;
+            if (data.transitions && data.transitions.length > 0) {
+                data.transitions.forEach((t, i) => {
+                    html += `
+                    <div style="border: 1px solid #45475a; padding: 5px; margin-bottom: 5px; border-radius: 4px;">
+                        <div class="form-group">
+                            <label>Target Node</label>
+                            <select onchange="updateTransition('${node.id}', ${i}, 'target_node_id', this.value)">
+                                <option value="">-- Select Target Node --</option>
+                                ${nodes.map(n => `<option value="${n.id}" ${t.target_node_id === n.id ? 'selected' : ''}>${n.name} (${n.id})</option>`).join('')}
+                            </select>
+                            <small style="color: #6c7086;">Or manually edit below</small>
+                            <input type="text" value="${t.target_node_id}" onchange="updateTransition('${node.id}', ${i}, 'target_node_id', this.value)" placeholder="Enter node ID" style="margin-top: 5px;">
+                        </div>
+                        <div class="form-group">
+                            <label>Label</label>
+                            <input type="text" value="${t.label || ''}" onchange="updateTransition('${node.id}', ${i}, 'label', this.value)">
+                        </div>
+                        <div class="form-group">
+                            <label>Condition Type</label>
+                            <select onchange="updateTransitionConditionType('${node.id}', ${i}, this.value)">
+                                <option value="null" ${!t.condition || t.condition === null ? 'selected' : ''}>None (Always)</option>
+                                <option value="equals" ${t.condition?.type === 'equals' ? 'selected' : ''}>Equals</option>
+                                <option value="contains" ${t.condition?.type === 'contains' ? 'selected' : ''}>Contains</option>
+                            </select>
+                        </div>
+                        ${t.condition && t.condition !== null ? `
+                            <div class="form-group">
+                                <label>Condition Field</label>
+                                <input type="text" value="${t.condition?.field || 'input'}" onchange="updateTransitionConditionField('${node.id}', ${i}, 'field', this.value)">
+                                <small style="color: #6c7086;">Field to check (e.g., 'input')</small>
+                            </div>
+                            <div class="form-group">
+                                <label>Condition Value</label>
+                                <input type="text" value="${t.condition?.value || ''}" onchange="updateTransitionConditionField('${node.id}', ${i}, 'value', this.value)">
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+                });
+            } else {
+                html += `<p style="font-size: 0.8rem; color: #6c7086;">No transitions. Drag from output port to add.</p>`;
+            }
+
+            // Actions List
+            html += `<h3 style="margin-top: 15px;">Actions</h3>`;
+            if (data.actions && data.actions.length > 0) {
+                data.actions.forEach((action, i) => {
+                    if (action.type === 'api_call') {
+                        html += `
+                            <div style="border: 1px solid #45475a; padding: 8px; margin-bottom: 8px; border-radius: 4px; background-color: rgba(137, 180, 250, 0.05);">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                    <strong style="color: var(--accent-color);">API Call Action #${i + 1}</strong>
+                                    <button onclick="deleteAction('${node.id}', ${i})" style="background-color: #f38ba8; color: #1e1e2e; padding: 2px 6px; font-size: 0.7rem;">Delete</button>
+                                </div>
+                                <div class="form-group">
+                                    <label>URL</label>
+                                    <input type="text" value="${action.api_action?.url || ''}" onchange="updateActionApiField('${node.id}', ${i}, 'url', this.value)">
+                                </div>
+                                <div class="form-group">
+                                    <label>Method</label>
+                                    <select onchange="updateActionApiField('${node.id}', ${i}, 'method', this.value)">
+                                        <option value="GET" ${action.api_action?.method === 'GET' ? 'selected' : ''}>GET</option>
+                                        <option value="POST" ${action.api_action?.method === 'POST' ? 'selected' : ''}>POST</option>
+                                        <option value="PUT" ${action.api_action?.method === 'PUT' ? 'selected' : ''}>PUT</option>
+                                        <option value="DELETE" ${action.api_action?.method === 'DELETE' ? 'selected' : ''}>DELETE</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Input Fields (comma-separated)</label>
+                                    <input type="text" value="${action.api_action?.input?.join(', ') || ''}" onchange="updateActionApiField('${node.id}', ${i}, 'input', this.value.split(',').map(s => s.trim()).filter(s => s))">
+                                    <small style="color: #6c7086;">Variables to send in request</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>Output Fields (comma-separated)</label>
+                                    <input type="text" value="${action.api_action?.output?.join(', ') || ''}" onchange="updateActionApiField('${node.id}', ${i}, 'output', this.value.split(',').map(s => s.trim()).filter(s => s))">
+                                    <small style="color: #6c7086;">Variables to extract from response</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>Headers (JSON)</label>
+                                    <textarea style="min-height: 60px; font-family: monospace; font-size: 0.85rem;" onchange="updateActionApiHeaders('${node.id}', ${i}, this.value)">${JSON.stringify(action.api_action?.headers || {}, null, 2)}</textarea>
+                                    <small style="color: #6c7086;">Custom HTTP headers as JSON object</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>Timeout (seconds)</label>
+                                    <input type="number" value="${action.api_action?.timeout || 30}" onchange="updateActionApiField('${node.id}', ${i}, 'timeout', parseInt(this.value))">
+                                </div>
+                                <div class="form-group">
+                                    <label>On Success (Node ID)</label>
+                                    <input type="text" value="${action.on_success || ''}" onchange="updateActionField('${node.id}', ${i}, 'on_success', this.value)">
+                                </div>
+                                <div class="form-group">
+                                    <label>On Failure (Node ID)</label>
+                                    <input type="text" value="${action.on_failure || ''}" onchange="updateActionField('${node.id}', ${i}, 'on_failure', this.value)">
+                                </div>
+                            </div>
+                        `;
+                    }
+                });
+            } else {
+                html += `<p style="font-size: 0.8rem; color: #6c7086;">No actions defined.</p>`;
+            }
+            html += `<button onclick="addApiCallAction('${node.id}')" style="width: 100%; margin-top: 5px; background-color: var(--accent-color); color: var(--bg-color);">+ Add API Call Action</button>`;
+
+            propertiesContent.innerHTML = html;
+        }
+
+        function renderFlowProperties() {
+            let html = `
+            <h3>Flow Properties</h3>
+            <div class="form-group">
+                <label>Flow ID</label>
+                <input type="text" value="${flowMetadata.id}" onchange="updateFlowMetadata('id', this.value)" ${flowMetadata.id && flowMetadata.id !== 'new_flow' ? 'readonly' : ''}>
+                ${flowMetadata.id && flowMetadata.id !== 'new_flow' ? '<small style="color: #6c7086;">ID cannot be changed after creation.</small>' : ''}
+            </div>
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" value="${flowMetadata.name}" onchange="updateFlowMetadata('name', this.value)">
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea onchange="updateFlowMetadata('description', this.value)">${flowMetadata.description}</textarea>
+            </div>
+            <div class="form-group">
+                <label>Version</label>
+                <input type="text" value="${flowMetadata.version}" onchange="updateFlowMetadata('version', this.value)">
+            </div>
+            <div class="form-group">
+                <label>Start Node ID</label>
+                <select onchange="updateFlowMetadata('start_node_id', this.value)">
+                    <option value="">-- Select Start Node --</option>
+                    ${nodes.map(n => `<option value="${n.id}" ${flowMetadata.start_node_id === n.id ? 'selected' : ''}>${n.name} (${n.id})</option>`).join('')}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Timeout (Minutes)</label>
+                <input type="number" value="${flowMetadata.timeout_minutes}" onchange="updateFlowMetadata('timeout_minutes', parseInt(this.value))">
+            </div>
+             <div class="form-group">
+                <label>Max Retries</label>
+                <input type="number" value="${flowMetadata.max_retries}" onchange="updateFlowMetadata('max_retries', parseInt(this.value))">
+            </div>
+            <div class="form-group">
+                <label>Tenant UID</label>
+                <input type="text" value="${flowMetadata.tenant_uid || ''}" onchange="updateFlowMetadata('tenant_uid', this.value)" placeholder="Enter tenant UID">
+                <small style="color: #6c7086;">Optional: Tenant/company identifier</small>
+            </div>
+            <div class="form-group">
+                <label>Tags (Comma separated)</label>
+                <input type="text" value="${flowMetadata.tags.join(', ')}" onchange="updateFlowTags(this.value)">
+            </div>
+        `;
+            propertiesContent.innerHTML = html;
+        }
+
+        function updateFlowMetadata(key, value) {
+            flowMetadata[key] = value;
+        }
+
+        function updateFlowTags(value) {
+            flowMetadata.tags = value.split(',').map(t => t.trim()).filter(t => t);
+        }
+
+        function updateNodeDataField(id, field, value) {
+            const node = nodes.find(n => n.id === id);
+            if (node) {
+                // Handle ID Change Propagation
+                if (field === 'id' && value !== node.id) {
+                    const oldId = node.id;
+                    const newId = value;
+
+                    // Check for duplicate ID
+                    if (nodes.find(n => n.id === newId)) {
+                        alert('ID already exists!');
+                        renderProperties(id); // Reset view
+                        return;
+                    }
+
+                    // Update references in transitions of ALL nodes
+                    nodes.forEach(n => {
+                        if (n.data.transitions) {
+                            n.data.transitions.forEach(t => {
+                                if (t.target_node_id === oldId) {
+                                    t.target_node_id = newId;
+                                }
+                            });
+                        }
+                    });
+
+                    // Update references in connections
+                    connections.forEach(c => {
+                        if (c.from === oldId) c.from = newId;
+                        if (c.to === oldId) c.to = newId;
+                    });
+
+                    // Update start node if applicable
+                    if (flowMetadata.start_node_id === oldId) {
+                        flowMetadata.start_node_id = newId;
+                    }
+
+                    // Update internal node ID
+                    node.id = newId;
+                    node.data.id = newId;
+
+                    // Update selection
+                    selectedNodeId = newId;
+                } else {
+                    node.data[field] = value;
+                    if (field === 'name') node.name = value;
+                }
+                renderNodes();
+                renderConnections();
+                renderProperties(node.id); // Re-render to reflect changes
+            }
+        }
+
+        function updateAIConfig(id, field, value) {
+            const node = nodes.find(n => n.id === id);
+            if (node) {
+                if (!node.data.ai_config) node.data.ai_config = {};
+                node.data.ai_config[field] = value;
+            }
+        }
+
+        function updateTransition(nodeId, index, field, value) {
+            const node = nodes.find(n => n.id === nodeId);
+            if (node && node.data.transitions[index]) {
+                const oldValue = node.data.transitions[index][field];
+                node.data.transitions[index][field] = value;
+
+                // If target_node_id changed, update the visual connection
+                if (field === 'target_node_id' && oldValue !== value) {
+                    // Find and update the connection
+                    const connIndex = connections.findIndex(c =>
+                        c.from === nodeId && c.to === oldValue
+                    );
+                    if (connIndex !== -1) {
+                        connections[connIndex].to = value;
+                    } else {
+                        // Create new connection if it doesn't exist
+                        connections.push({
+                            from: nodeId,
+                            to: value,
+                            label: node.data.transitions[index].label || 'Next'
+                        });
+                    }
+                    renderConnections();
+                    renderProperties(nodeId); // Re-render to update dropdown
+                }
+            }
+        }
+
+        function updateTransitionCondition(nodeId, index, value) {
+            const node = nodes.find(n => n.id === nodeId);
+            if (node && node.data.transitions[index]) {
+                if (!node.data.transitions[index].condition) {
+                    node.data.transitions[index].condition = {
+                        type: 'equals',
+                        field: 'input',
+                        value: ''
+                    };
+                }
+                node.data.transitions[index].condition.value = value;
+            }
+        }
+
+        function updateTransitionConditionType(nodeId, index, type) {
+            const node = nodes.find(n => n.id === nodeId);
+            if (node && node.data.transitions[index]) {
+                if (type === 'null') {
+                    node.data.transitions[index].condition = null;
+                } else {
+                    node.data.transitions[index].condition = {
+                        type: type,
+                        field: 'input',
+                        value: ''
+                    };
+                }
+                // Re-render to show/hide condition fields
+                renderProperties(nodeId);
+            }
+        }
+
+        function updateTransitionConditionField(nodeId, index, field, value) {
+            const node = nodes.find(n => n.id === nodeId);
+            if (node && node.data.transitions[index] && node.data.transitions[index].condition) {
+                node.data.transitions[index].condition[field] = value;
+            }
+        }
+
+        // --- Action Management ---
+
+        function addApiCallAction(nodeId) {
+            const node = nodes.find(n => n.id === nodeId);
+            if (node) {
+                if (!node.data.actions) node.data.actions = [];
+                node.data.actions.push({
+                    type: 'api_call',
+                    api_action: {
+                        url: '',
+                        method: 'POST',
+                        input: [],
+                        output: [],
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        timeout: 30
+                    },
+                    on_success: '',
+                    on_failure: ''
+                });
+                renderProperties(nodeId);
+            }
+        }
+
+        function deleteAction(nodeId, index) {
+            const node = nodes.find(n => n.id === nodeId);
+            if (node && node.data.actions) {
+                if (confirm('Delete this action?')) {
+                    node.data.actions.splice(index, 1);
+                    renderProperties(nodeId);
+                }
+            }
+        }
+
+        function updateActionField(nodeId, index, field, value) {
+            const node = nodes.find(n => n.id === nodeId);
+            if (node && node.data.actions && node.data.actions[index]) {
+                node.data.actions[index][field] = value;
+            }
+        }
+
+        function updateActionApiField(nodeId, index, field, value) {
+            const node = nodes.find(n => n.id === nodeId);
+            if (node && node.data.actions && node.data.actions[index]) {
+                if (!node.data.actions[index].api_action) {
+                    node.data.actions[index].api_action = {};
+                }
+                node.data.actions[index].api_action[field] = value;
+            }
+        }
+
+        function updateActionApiHeaders(nodeId, index, jsonString) {
+            const node = nodes.find(n => n.id === nodeId);
+            if (node && node.data.actions && node.data.actions[index]) {
+                try {
+                    const headers = JSON.parse(jsonString);
+                    if (!node.data.actions[index].api_action) {
+                        node.data.actions[index].api_action = {};
+                    }
+                    node.data.actions[index].api_action.headers = headers;
+                } catch (err) {
+                    alert('Invalid JSON for headers: ' + err.message);
+                }
+            }
+        }
+
+        // --- Validation Management ---
+
+        function addValidation(nodeId) {
+            const node = nodes.find(n => n.id === nodeId);
+            if (node) {
+                if (!node.data.validations) node.data.validations = [];
+                node.data.validations.push({
+                    type: 'required',
+                    params: {},
+                    error_message: ''
+                });
+                renderProperties(nodeId);
+            }
+        }
+
+        function deleteValidation(nodeId, index) {
+            const node = nodes.find(n => n.id === nodeId);
+            if (node && node.data.validations) {
+                if (confirm('Delete this validation?')) {
+                    node.data.validations.splice(index, 1);
+                    renderProperties(nodeId);
+                }
+            }
+        }
+
+        function updateValidationField(nodeId, index, field, value) {
+            const node = nodes.find(n => n.id === nodeId);
+            if (node && node.data.validations && node.data.validations[index]) {
+                node.data.validations[index][field] = value;
+                // Re-render to show/hide conditional fields
+                if (field === 'type') {
+                    renderProperties(nodeId);
+                }
+            }
+        }
+
+        function updateValidationParam(nodeId, index, param, value) {
+            const node = nodes.find(n => n.id === nodeId);
+            if (node && node.data.validations && node.data.validations[index]) {
+                if (!node.data.validations[index].params) {
+                    node.data.validations[index].params = {};
+                }
+                node.data.validations[index].params[param] = value;
+            }
+        }
+
+        // --- File I/O ---
+
+        function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const json = JSON.parse(e.target.result);
+                    loadChatflow(json);
+                } catch (err) {
+                    alert('Error parsing JSON: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function loadChatflow(json) {
+            // Load Flow Metadata
+            flowMetadata = {
+                id: json.id || "new_flow",
+                name: json.name || "New Flow",
+                description: json.description || "",
+                version: json.version || "1.0",
+                start_node_id: json.start_node_id || "",
+                timeout_minutes: json.timeout_minutes || 60,
+                max_retries: json.max_retries || 3,
+                tags: json.tags || []
+            };
+
+            nodes = json.nodes.map((n, index) => ({
+                id: n.id,
+                type: n.type,
+                name: n.name || n.id,
+                x: 100 + (index % 4) * 350,
+                y: 100 + Math.floor(index / 4) * 250,
+                data: n
+            }));
+
+            connections = [];
+            json.nodes.forEach(n => {
+                if (n.transitions) {
+                    n.transitions.forEach(t => {
+                        if (t.target_node_id) {
+                            connections.push({
+                                from: n.id,
+                                to: t.target_node_id,
+                                label: t.label
+                            });
+                        }
+                    });
+                }
+            });
+
+            renderNodes();
+            renderConnections();
+            renderProperties(null); // Show flow props by default
+        }
+
+        function saveChatflowFile() {
+            const output = {
+                ...flowMetadata,
+                nodes: nodes.map(n => n.data)
+            };
+
+            const blob = new Blob([JSON.stringify(output, null, 2)], {
+                type: 'application/json'
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = (flowMetadata.id || 'chatflow') + '.json';
+            a.click();
+        }
+
+        // --- API Integration ---
+
+        async function openDbLoadModal() {
+            try {
+                const response = await authenticatedFetch(`${apiBaseUrl}/convo/convos`);
+                if (!response.ok) throw new Error('Failed to fetch flows');
+                const flows = await response.json();
+                renderFlowList(flows);
+                dbModal.style.display = "block";
+            } catch (err) {
+                alert('Error loading flows: ' + err.message);
+            }
+        }
+
+        function renderFlowList(flows) {
+            flowList.innerHTML = '';
+            if (flows.length === 0) {
+                flowList.innerHTML = '<li style="color: #6c7086; text-align: center;">No flows found.</li>';
+                return;
+            }
+
+            flows.forEach(flow => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                <div class="flow-info">
+                    <span class="flow-name">${flow.name}</span>
+                    <span class="flow-id">${flow.id}</span>
+                </div>
+                <span style="font-size: 0.8em; color: #6c7086;">v${flow.version}</span>
+            `;
+                li.addEventListener('click', async () => {
+                    await loadFlowFromDb(flow.id);
+                    dbModal.style.display = "none";
+                });
+                flowList.appendChild(li);
+            });
+        }
+
+        async function loadFlowFromDb(id) {
+            try {
+                const response = await authenticatedFetch(`${apiBaseUrl}/convo/convos/${id}`);
+                if (!response.ok) throw new Error('Failed to fetch flow details');
+                const flow = await response.json();
+                loadChatflow(flow);
+            } catch (err) {
+                alert('Error loading flow: ' + err.message);
+            }
+        }
+
+        async function saveChatflowToDb() {
+            const payload = {
+                ...flowMetadata,
+                nodes: nodes.map(n => n.data)
+            };
+
+            // Determine if Create or Update
+            const isNew = !flowMetadata.id || flowMetadata.id === 'new_flow';
+            const method = isNew ? 'POST' : 'PUT';
+            const url = isNew ? `${apiBaseUrl}/convo/convos` : `${apiBaseUrl}/convo/convos/${flowMetadata.id}`;
+
+            // If new, remove ID so backend generates it (or user can specify if they want custom ID, but usually backend handles it)
+            // The API model expects 'id' field. If we send "new_flow", it might try to use that as ID.
+            // Let's assume if it's "new_flow", we want to create a NEW one.
+            // If we send "new_flow" as ID, it will create a flow with ID "new_flow".
+            // We should probably prompt user for ID if it's new, or generate a UUID.
+
+            if (isNew && flowMetadata.id === 'new_flow') {
+                // Simple ID generation for now if user didn't change it
+                // Or better, let's just send it. If it fails, user will know.
+                // Actually, let's clear it if it's the default, so backend might handle it?
+                // Looking at `convo.py`, it takes `ConvoDefinition`.
+                // If I send `id: "new_flow"`, it will save as "new_flow".
+                // Let's prompt the user if they want to rename it before saving.
+                const newName = prompt("Enter a unique ID for this flow (or leave default):", "flow_" + Date.now());
+                if (!newName) return;
+                payload.id = newName;
+                flowMetadata.id = newName; // Update local state
+            }
+
+            try {
+                const response = await authenticatedFetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || 'Failed to save');
+                }
+
+                const savedFlow = await response.json();
+                alert('Flow saved successfully!');
+
+                // Update local metadata with response (e.g. if ID was generated or sanitized)
+                loadChatflow(savedFlow);
+
+            } catch (err) {
+                alert('Error saving flow: ' + err.message);
+            }
+        }
+
+        async function saveAsNewFlow() {
+            // Prompt for new flow ID
+            const newId = prompt("Enter a unique ID for the new flow:", flowMetadata.id + "_copy");
+            if (!newId) return; // User cancelled
+
+            // Create payload with new ID
+            const payload = {
+                ...flowMetadata,
+                id: newId,
+                nodes: nodes.map(n => n.data)
+            };
+
+            try {
+                const response = await authenticatedFetch(`${apiBaseUrl}/convo/convos`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || 'Failed to save as new');
+                }
+
+                const savedFlow = await response.json();
+                alert('Flow saved as new successfully!');
+
+                // Update local metadata with the new flow
+                loadChatflow(savedFlow);
+
+            } catch (err) {
+                alert('Error saving as new flow: ' + err.message);
+            }
+        }
+
+        function autoArrange() {
+            // Simple Grid Layout
+            nodes.forEach((n, i) => {
+                n.x = 100 + (i % 4) * 350;
+                n.y = 100 + Math.floor(i / 4) * 250;
+            });
+            renderNodes();
+            renderConnections();
+        }
+
+        // Start
+        init();
+        updateCanvasTransform();
+
+
+    </script>
+</body>
+
+</html>

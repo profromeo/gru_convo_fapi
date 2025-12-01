@@ -2,9 +2,9 @@ import logging
 import sys
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -15,6 +15,10 @@ from app.config import get_settings
 from app.api.v1.router import api_router
 from app.core.utils.exceptions import APIServiceException, convert_exception_to_http
 from app.db.mongodb import init_mongodb, close_mongodb
+from app.core.models.auth import UserLogin
+from app.core.services.user_service import get_user_service
+from app.core.auth.jwt_handler import jwt_handler
+from app.core.auth.dependencies import get_current_user
 
 
 def setup_logging():
@@ -149,6 +153,22 @@ def create_app() -> FastAPI:
             raise
     
     # Exception handlers
+    @app.exception_handler(StarletteHTTPException)
+    async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+        """Handle HTTP exceptions."""
+        if exc.status_code == 401 and request.url.path == "/convo-editor":
+             return RedirectResponse(url="/login")
+        
+        logger.warning(f"HTTP {exc.status_code}: {exc.detail}")
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "success": False,
+                "message": exc.detail,
+                "status_code": exc.status_code
+            }
+        )
+
     @app.exception_handler(APIServiceException)
     async def rag_service_exception_handler(request: Request, exc: APIServiceException):
         """Handle RAG service specific exceptions."""
@@ -175,18 +195,7 @@ def create_app() -> FastAPI:
             }
         )
     
-    @app.exception_handler(StarletteHTTPException)
-    async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-        """Handle HTTP exceptions."""
-        logger.warning(f"HTTP {exc.status_code}: {exc.detail}")
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={
-                "success": False,
-                "message": exc.detail,
-                "status_code": exc.status_code
-            }
-        )
+
     
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):
@@ -257,6 +266,62 @@ def create_app() -> FastAPI:
         """Serve the chat interface"""
         return templates.TemplateResponse(
             "chat.html",
+            {
+                "request": request,
+                "api_base_url": f"{settings.chat_host}{settings.api_prefix}",
+                "app_name": settings.app_name
+            }
+        )
+
+    @app.get("/login")
+    async def login_page(request: Request):
+        """Serve the login page"""
+        return templates.TemplateResponse(
+            "login.html",
+            {
+                "request": request,
+                "app_name": settings.app_name
+            }
+        )
+
+    @app.post("/login")
+    async def login(
+        user_data: UserLogin,
+        response: Response,
+        user_service = Depends(get_user_service)
+    ):
+        """Handle login and set cookie"""
+        user = await user_service.get_user_by_email(user_data.email)
+        if not user or not user.is_active:
+             return JSONResponse(status_code=401, content={"detail": "Invalid credentials"})
+        
+        # Verify password (simplified for this context, ideally use same logic as auth endpoint)
+        password_valid = jwt_handler.verify_password(user_data.password, user.hashed_password)
+        if not password_valid:
+             return JSONResponse(status_code=401, content={"detail": "Invalid credentials"})
+
+        access_token = jwt_handler.create_access_token(user.user_id, user.email, user.role, user.function, user.live_authorization, user.tenant_uid)
+        
+        # Set cookie
+        response = JSONResponse(content={"success": True})
+        response.set_cookie(
+            key="access_token",
+            value=f"Bearer {access_token}",
+            httponly=True,
+            max_age=settings.jwt_access_token_expire_minutes * 60,
+            secure=settings.is_production,
+            samesite="lax"
+        )
+        return response
+
+    @app.get("/convo-editor")
+    async def convo_editor(
+        request: Request,
+        current_user = Depends(get_current_user)
+    ):
+        """Serve the convo editor interface"""
+        return templates.TemplateResponse(
+            "convo_editor.html",
             {
                 "request": request,
                 "api_base_url": f"{settings.chat_host}{settings.api_prefix}",
