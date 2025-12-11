@@ -90,7 +90,17 @@ class TenantService:
                 "metadata": tenant_data.metadata,
                 "created_at": datetime.utcnow(),
                 "updated_at": datetime.utcnow(),
-                "created_by": created_by
+                "created_by": created_by,
+                "whatsapp_bot_enabled": tenant_data.whatsapp_bot_enabled,
+                "twilio_account_sid": tenant_data.twilio_account_sid,
+                "twilio_auth_token": tenant_data.twilio_auth_token,
+                "twilio_whatsapp_number": tenant_data.twilio_whatsapp_number,
+                "default_convo_id": tenant_data.default_convo_id,
+                "tenant_convo_auth_url": tenant_data.tenant_convo_auth_url,
+                "tenant_convo_chat_url": tenant_data.tenant_convo_chat_url,
+                "convo_service_email": tenant_data.convo_service_email,
+                "convo_service_password": tenant_data.convo_service_password,
+                "tenant_convo_login_url": tenant_data.tenant_convo_login_url
             }
             
             await self.tenants_collection.insert_one(tenant_doc)
@@ -118,6 +128,10 @@ class TenantService:
         except Exception as e:
             self.logger.error(f"Error getting tenant {tenant_uid}: {e}")
             raise TenantServiceError(f"Failed to get tenant: {str(e)}")
+            
+    # Alias for backward compatibility if needed, or just use get_tenant
+    async def get_tenant_by_uid(self, tenant_uid: str) -> Optional[Tenant]:
+        return await self.get_tenant(tenant_uid)
     
     async def get_tenant_by_company_name(self, company_name: str) -> Optional[Tenant]:
         """Get tenant by company name."""

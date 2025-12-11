@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     
     # Database names - defined once
     mongodb_database: str = "gru_convo"
-    mongodb_auth_database: str = "gru_convo"
+    mongodb_auth_database: str = "gru_global_auth"
     mongodb_test_database: str = "gru_convo"
     mongodb_tog_database: str = "arb_togmatix_shop"
    
