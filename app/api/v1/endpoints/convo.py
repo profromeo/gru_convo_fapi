@@ -8,7 +8,8 @@ from app.core.models.convo import (
     ConvoDefinition,
     ChatRequest,
     ChatResponse,
-    ChatSession
+    ChatSession,
+    ChatMessageRequest
 )
 from app.core.services.convo_service import ConvoService
 from app.db.mongodb import get_database
@@ -193,19 +194,44 @@ async def start_chat_session(
 @router.post("/chat/{session_id}/message", response_model=ChatResponse)
 async def send_chat_message(
     session_id: str,
-    message: str = Query(..., description="User message to send"),
+    message: Optional[str] = Query(None, description="User message to send"),
     media_url: Optional[str] = Query(None, description="Media URL (or object name)"),
+    body: Optional[ChatMessageRequest] = None,
     service: ConvoService = Depends(get_convo_service),
     current_user: User = Depends(get_current_user)
 ):
     """
     Send a message to an existing chat session.
     
+    Accepts message/media_url either via query params (legacy) or JSON body.
     Requires authentication.
     """
     try:
-        response = await service.continue_chat_session(session_id, message, media_url=media_url)
+        # Extract from body if provided
+        final_message = message
+        final_media_url = media_url
+        
+        if body:
+            if body.message:
+                final_message = body.message
+            if body.media_url:
+                final_media_url = body.media_url
+        
+        # Validation
+        if not final_message and not final_media_url:
+             raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Either 'message' or 'media_url' must be provided"
+            )
+
+        # Allow empty message if media_url is present, but ensure string for service
+        if final_message is None:
+            final_message = ""
+
+        response = await service.continue_chat_session(session_id, final_message, media_url=final_media_url)
         return response
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error sending chat message: {e}")
         raise HTTPException(

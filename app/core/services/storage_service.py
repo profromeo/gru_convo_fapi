@@ -6,6 +6,8 @@ from minio import Minio
 from minio.error import S3Error
 from app.config import Settings
 
+from app.core.models.convo import MinioConfig
+
 class StorageService:
     """Service for handling file storage operations using MinIO"""
     
@@ -113,11 +115,12 @@ class StorageService:
             self.logger.error(f"Upload error for {object_name}: {e}")
             return None
 
-    def get_file_url(self, object_name: str) -> str:
+    def get_file_url(self, object_name: str, minio_config: Optional[MinioConfig] = None) -> str:
         """Get file URL from object name.
         
         Args:
-           object_name: The MinIO object name (e.g., 'tenant/2023/12/file.jpg')
+           object_name: The MinIO object name
+           minio_config: Optional custom MinIO configuration
            
         Returns:
             Public or presigned URL for the file
@@ -129,6 +132,12 @@ class StorageService:
         if object_name.startswith(("http://", "https://")):
             return object_name
             
+        if minio_config:
+            protocol = "https" if minio_config.secure else "http"
+            endpoint = minio_config.endpoint
+            bucket = minio_config.bucket_name
+            return f"{protocol}://{endpoint}/{bucket}/{object_name}"
+            
         # Construct public URL (assuming public bucket as per ensure_bucket_exists)
         protocol = "https" if getattr(self.settings, 'minio_secure', True) else "http"
         endpoint = getattr(self.settings, 'minio_endpoint', 'localhost')
@@ -136,25 +145,43 @@ class StorageService:
         
         return url
 
-    def download_file(self, object_name: str, file_path: str) -> bool:
+    def download_file(self, object_name: str, file_path: str, minio_config: Optional[MinioConfig] = None) -> bool:
         """Download a file from MinIO to local path.
         
         Args:
             object_name: The MinIO object name
             file_path: Local path to save the file
+            minio_config: Optional custom MinIO configuration
             
         Returns:
             True if successful, False otherwise
         """
-        if not self.client:
+        client = self.client
+        bucket = self.bucket_name
+        
+        if minio_config:
+            try:
+                client = Minio(
+                    minio_config.endpoint,
+                    access_key=minio_config.access_key,
+                    secret_key=minio_config.secret_key,
+                    secure=minio_config.secure
+                )
+                bucket = minio_config.bucket_name
+            except Exception as e:
+                self.logger.error(f"Failed to create temp MinIO client: {e}")
+                return False
+        
+        if not client:
             self.logger.error("MinIO client not initialized")
             return False
             
         try:
-            self.client.fget_object(self.bucket_name, object_name, file_path)
+            client.fget_object(bucket, object_name, file_path)
             self.logger.info(f"Downloaded {object_name} to {file_path}")
             return True
         except Exception as e:
             self.logger.error(f"Download error for {object_name}: {e}")
             return False
+
 

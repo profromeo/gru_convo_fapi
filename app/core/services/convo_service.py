@@ -669,22 +669,103 @@ class ConvoService:
         convo: ConvoDefinition
     ) -> Dict[str, Any]:
         """Process a Process Media node."""
-        # Placeholder implementation
         logger.info(f"Processing media node: {node.id}")
         
         media_url = session.context.get("media_url")
+        processed_successfully = False
+        result_details = ""
         
         if media_url and node.process_media_config:
-            # Simulate processing
-            session.context["processed_media_result"] = f"Media '{media_url}' processed by {node.process_media_config.action_type}"
+            import tempfile
+            import os
             
-            # Clear media_url from context after processing if it's a one-time use
-            session.context.pop("media_url", None)
+            config = node.process_media_config
+            local_file_path = None
+            
+            try:
+                # Create temp file
+                # Use suffix from url if possible to help with extension detection
+                suffix = ""
+                if "." in media_url.split("/")[-1]:
+                    suffix = "." + media_url.split("/")[-1].split(".")[-1]
+                    
+                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
+                    local_file_path = tmp_file.name
+                
+                download_success = False
+                
+                # 1. Custom MinIO Config
+                if config.minio_config:
+                    logger.info(f"Attempting download with custom MinIO config: {config.minio_config.endpoint}")
+                    download_success = self.storage_service.download_file(
+                        media_url, 
+                        local_file_path, 
+                        minio_config=config.minio_config
+                    )
+                
+                # 2. Direct URL
+                elif media_url.startswith(("http://", "https://")):
+                    logger.info(f"Attempting direct HTTP download: {media_url}")
+                    async with httpx.AsyncClient() as client:
+                        resp = await client.get(media_url, timeout=30.0)
+                        if resp.status_code == 200:
+                            with open(local_file_path, "wb") as f:
+                                f.write(resp.content)
+                            download_success = True
+                        else:
+                            logger.error(f"Failed to download media. Status: {resp.status_code}")
+                
+                # 3. Default MinIO
+                else:
+                    logger.info(f"Attempting download with default MinIO config")
+                    download_success = self.storage_service.download_file(media_url, local_file_path)
+                
+                if download_success:
+                    logger.info(f"Media downloaded successfully to {local_file_path}")
+                    
+                    # Placeholder for actual processing logic (OCR, etc.)
+                    # In a real impl, we would use external services or libs here
+                    processed_successfully = True
+                    result_details = f"Processed {media_url} via {config.action_type}"
+                    
+                    # Store result
+                    if config.output_variable:
+                        session.context[config.output_variable] = result_details
+                    
+                    session.context["processed_media_result"] = result_details
+                    
+                    # Clear media_url if it was temporary
+                    # session.context.pop("media_url", None)
+                else:
+                    logger.error("Failed to download media file")
+                    result_details = "Failed to retrieve media file"
+
+            except Exception as e:
+                logger.error(f"Error processing media: {e}", exc_info=True)
+                result_details = f"Error: {str(e)}"
+            finally:
+                # Cleanup temp file
+                if local_file_path and os.path.exists(local_file_path):
+                    try:
+                        os.remove(local_file_path)
+                    except Exception as e:
+                        logger.warning(f"Failed to delete temp file {local_file_path}: {e}")
 
         # Determine next node based on transitions or default
         next_node_id = None
         if node.transitions:
-            # For simplicity, take the first transition if available
+            # Check conditions if needed, otherwise take first
+            # For now taking first match or default
+            for transition in node.transitions:
+                 next_node_id = transition.target_node_id
+                 break
+        
+        # If no explicit transition found, check default_transition
+        if not next_node_id and node.default_transition:
+            next_node_id = node.default_transition
+
+        # Fallback to first transition if exists (legacy behavior?)
+        if not next_node_id and node.transitions:
             next_node_id = node.transitions[0].target_node_id
         
         next_node = next(
@@ -694,11 +775,16 @@ class ConvoService:
 
         if next_node:
             session.current_node_id = next_node.id
-            message = self._render_template(next_node.message or "Media processed.", session.context)
+            
+            # Prepare next node message
+            next_message = next_node.message or "Media processed."
+            message = self._render_template(next_message, session.context)
+            
             requires_input = next_node.collect_input
             input_type = next_node.input_type if next_node.collect_input else None
             input_field = next_node.input_field if next_node.collect_input else None
             completed = next_node.type == NodeType.END
+            
             options = []
             if next_node.type == NodeType.MENU and next_node.transitions:
                 for idx, transition in enumerate(next_node.transitions, 1):
@@ -718,13 +804,13 @@ class ConvoService:
             }
         else:
             # If no next node, stay on current node or end
-            message = self._render_template(node.message or "Media processing complete, but no next node defined.", session.context)
+            message = self._render_template(node.message or f"Media processing complete: {result_details}", session.context)
             return {
                 "message": message,
                 "node_id": node.id,
                 "next_node_id": None,
                 "node_type": node.type,
-                "requires_input": False, # Typically, media processing nodes don't require direct input
+                "requires_input": False, 
                 "input_type": None,
                 "input_field": None,
                 "completed": node.type == NodeType.END,

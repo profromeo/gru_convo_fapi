@@ -30,11 +30,29 @@ class ProcessMediaActionType(str, Enum):
     SAVE = "save"
 
 
+
+class MinioConfig(BaseModel):
+    """Configuration for MinIO access."""
+    endpoint: str = Field(..., description="MinIO endpoint (e.g., play.min.io)")
+    access_key: str = Field(..., description="Access key")
+    secret_key: str = Field(..., description="Secret key")
+    bucket_name: str = Field(..., description="Bucket name")
+    secure: bool = Field(default=True, description="Use HTTPS")
+
+
 class ProcessMediaConfig(BaseModel):
     """Configuration for processing media."""
     action_type: ProcessMediaActionType = Field(..., description="Type of action to perform")
     params: Dict[str, Any] = Field(default_factory=dict, description="Parameters for the action")
     output_variable: Optional[str] = Field(None, description="Variable to store result in context") # e.g. for OCR text
+    minio_config: Optional[MinioConfig] = Field(None, description="Optional MinIO configuration for accessing the media")
+
+
+class ChatMessageRequest(BaseModel):
+    """Request body for sending a chat message."""
+    message: Optional[str] = Field(None, description="User message to send")
+    media_url: Optional[str] = Field(None, description="Media URL (or object name)")
+
 
 
 class TransitionConditionType(str, Enum):
