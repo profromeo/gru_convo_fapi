@@ -20,6 +20,22 @@ class NodeType(str, Enum):
     VALIDATION = "validation"
     MENU = "menu"
     AI_CHAT = "ai_chat"
+    PROCESS_MEDIA = "process_media"
+
+class ProcessMediaActionType(str, Enum):
+    """Types of actions for processing media."""
+    OCR = "ocr"
+    FORWARD = "forward"
+    EMAIL = "email"
+    SAVE = "save"
+
+
+class ProcessMediaConfig(BaseModel):
+    """Configuration for processing media."""
+    action_type: ProcessMediaActionType = Field(..., description="Type of action to perform")
+    params: Dict[str, Any] = Field(default_factory=dict, description="Parameters for the action")
+    output_variable: Optional[str] = Field(None, description="Variable to store result in context") # e.g. for OCR text
+
 
 class TransitionConditionType(str, Enum):
     """Types of conditions for transitions."""
@@ -113,6 +129,9 @@ class ConvoNode(BaseModel):
     
     # AI Configuration (for AI_CHAT nodes)
     ai_config: Optional[AINodeConfig] = Field(None, description="AI chat configuration")
+    
+    # Process Media Configuration
+    process_media_config: Optional[ProcessMediaConfig] = Field(None, description="Configuration for processing media")
     
     # Transitions
     transitions: List[NodeTransition] = Field(default_factory=list, description="Possible transitions from this node")

@@ -194,6 +194,7 @@ async def start_chat_session(
 async def send_chat_message(
     session_id: str,
     message: str = Query(..., description="User message to send"),
+    media_url: Optional[str] = Query(None, description="Media URL (or object name)"),
     service: ConvoService = Depends(get_convo_service),
     current_user: User = Depends(get_current_user)
 ):
@@ -203,7 +204,7 @@ async def send_chat_message(
     Requires authentication.
     """
     try:
-        response = await service.continue_chat_session(session_id, message)
+        response = await service.continue_chat_session(session_id, message, media_url=media_url)
         return response
     except Exception as e:
         logger.error(f"Error sending chat message: {e}")

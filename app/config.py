@@ -77,6 +77,14 @@ class Settings(BaseSettings):
     secret_key: str = "your-secret-key-here"
     
     ai_service_url: str = "https://ai.grucode.dev"  # Default AI service URL
+
+
+    # MinIO Storage Settings
+    minio_endpoint: str = "minio.togmatix.site"
+    minio_access_key: str = "ieodReWnmpCjPZRxjpwT" # Set via env var
+    minio_secret_key: str = "ffgZJVfPH6hRYbxekjc7DqZGBWMCc7zGPw1arZDY" # Set via env var 
+    minio_secure: bool = True
+    minio_bucket_name: str = "gru-whatsapp-media"
     
     @property
     def database_url(self) -> str:

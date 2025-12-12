@@ -19,9 +19,15 @@ from app.core.models.convo import (
     AIChatSessionCreate,
     AIChatQuery,
     AIChatResponse,
-    AIChatMessage
+    AIChatMessage,
+    ProcessMediaConfig,
+    ProcessMediaActionType,
+    Union,
+    TransitionCondition,
+    TransitionConditionType
 )
 from app.core.utils.exceptions import APIServiceException
+from app.core.services.storage_service import StorageService
 import httpx
 
 logger = logging.getLogger(__name__)
@@ -35,8 +41,9 @@ class ConvoService:
         self.database = database
         self.convos_collection = database["chat_convos"]
         self.sessions_collection = database["chat_sessions"]
-        self.ai_chat_sessions_collection = database["ai_chat_sessions"]
-        self.ai_chat_history_collection = database["ai_chat_history"]
+        self.ai_sessions_collection = database["ai_chat_sessions"]
+        self.ai_interactions_collection = database["ai_interactions"]
+        self.storage_service = StorageService(settings)
         self.logger = logging.getLogger(__name__)
         
         # AI service configuration
@@ -355,7 +362,8 @@ class ConvoService:
     async def continue_chat_session(
         self,
         session_id: str,
-        user_message: str
+        user_message: str,
+        media_url: Optional[str] = None
     ) -> ChatResponse:
         """Continue an existing chat session with a user message."""
         try:
@@ -366,6 +374,11 @@ class ConvoService:
                     convo_id="enhanced_customer_support_flow"  # You may choose a default convo ID
                 )
                 session = await self.start_chat_session(new_chat_request)
+            
+            # Update context with media_url if provided
+            if media_url:
+                session.context['media_url'] = media_url
+                logger.info(f"Updated session context with media_url: {media_url}")
                 #raise APIServiceException(
                 #    message=f"Chat session '{session_id}' not found",
                 #    http_status_code=404
@@ -648,7 +661,77 @@ class ConvoService:
                     http_status_code=500
                 )
 
-    
+    async def _process_process_media_node(
+        self,
+        session: ChatSession,
+        node: ConvoNode,
+        user_input: str,
+        convo: ConvoDefinition
+    ) -> Dict[str, Any]:
+        """Process a Process Media node."""
+        # Placeholder implementation
+        logger.info(f"Processing media node: {node.id}")
+        
+        media_url = session.context.get("media_url")
+        
+        if media_url and node.process_media_config:
+            # Simulate processing
+            session.context["processed_media_result"] = f"Media '{media_url}' processed by {node.process_media_config.action_type}"
+            
+            # Clear media_url from context after processing if it's a one-time use
+            session.context.pop("media_url", None)
+
+        # Determine next node based on transitions or default
+        next_node_id = None
+        if node.transitions:
+            # For simplicity, take the first transition if available
+            next_node_id = node.transitions[0].target_node_id
+        
+        next_node = next(
+            (n for n in convo.nodes if n.id == next_node_id),
+            None
+        ) if next_node_id else None
+
+        if next_node:
+            session.current_node_id = next_node.id
+            message = self._render_template(next_node.message or "Media processed.", session.context)
+            requires_input = next_node.collect_input
+            input_type = next_node.input_type if next_node.collect_input else None
+            input_field = next_node.input_field if next_node.collect_input else None
+            completed = next_node.type == NodeType.END
+            options = []
+            if next_node.type == NodeType.MENU and next_node.transitions:
+                for idx, transition in enumerate(next_node.transitions, 1):
+                    label = self._render_template(transition.label or f"Option {idx}", session.context)
+                    options.append({"value": str(idx), "label": label, "target_node_id": transition.target_node_id})
+            
+            return {
+                "message": message,
+                "node_id": next_node.id,
+                "next_node_id": next_node.id,
+                "node_type": next_node.type,
+                "requires_input": requires_input,
+                "input_type": input_type,
+                "input_field": input_field,
+                "completed": completed,
+                "options": options
+            }
+        else:
+            # If no next node, stay on current node or end
+            message = self._render_template(node.message or "Media processing complete, but no next node defined.", session.context)
+            return {
+                "message": message,
+                "node_id": node.id,
+                "next_node_id": None,
+                "node_type": node.type,
+                "requires_input": False, # Typically, media processing nodes don't require direct input
+                "input_type": None,
+                "input_field": None,
+                "completed": node.type == NodeType.END,
+                "options": []
+            }
+
+
     async def _process_node(
         self,
         session: ChatSession,
@@ -661,6 +744,10 @@ class ConvoService:
             # Check if this is an AI chat node
             if node.type == NodeType.AI_CHAT:
                 return await self._process_ai_chat_node(session, node, user_input, convo)
+            
+            # Check if this is a Process Media node
+            if node.type == NodeType.PROCESS_MEDIA:
+                return await self._process_process_media_node(session, node, user_input, convo)
             
             # Add user message to history if provided
             if user_input:
@@ -1012,22 +1099,44 @@ class ConvoService:
     
     def _evaluate_condition(
         self,
-        condition: str,
+        condition: Union[str, TransitionCondition],
         context: Dict[str, Any],
         user_input: str
     ) -> bool:
-        """Evaluate a condition string."""
+        """Evaluate a condition."""
         try:
-            # Simple condition evaluation
-            # You can enhance this with more complex logic
-            # For now, support basic comparisons
-            
-            # Add user_input to context for evaluation
-            eval_context = {**context, "user_input": user_input}
-            
-            # WARNING: Using eval is dangerous in production
-            # Consider using a safer expression evaluator
-            return eval(condition, {"__builtins__": {}}, eval_context)
+            # Handle object-based condition
+            if isinstance(condition, TransitionCondition):
+                if condition.type == TransitionConditionType.ALWAYS:
+                    return True
+                    
+                value_to_check = user_input
+                if condition.field:
+                    # Extract from context if field is specified
+                    found, val = self._find_value_in_nested_dict(context, condition.field)
+                    if found:
+                        value_to_check = str(val)
+                
+                target_value = str(condition.value) if condition.value is not None else None
+                
+                if condition.type == TransitionConditionType.EQUALS:
+                    return value_to_check == target_value
+                elif condition.type == TransitionConditionType.CONTAINS:
+                    return target_value in value_to_check if target_value else False
+                elif condition.type == TransitionConditionType.REGEX:
+                    import re
+                    return bool(re.search(target_value, value_to_check)) if target_value else False
+                # Add other types as needed
+                return False
+
+            # Handle string-based condition (legacy/custom)
+            if isinstance(condition, str):
+                # Add user_input to context for evaluation
+                eval_context = {**context, "user_input": user_input}
+                # WARNING: Using eval is dangerous
+                return eval(condition, {"__builtins__": {}}, eval_context)
+                
+            return False
         except Exception as e:
             logger.error(f"Error evaluating condition '{condition}': {e}")
             return False
@@ -1460,7 +1569,7 @@ class ConvoService:
                 return transition.target_node_id, None
             
             # Evaluate condition
-            if await self._evaluate_condition(transition.condition, session.context, user_input):
+            if self._evaluate_condition(transition.condition, session.context, user_input):
                 return transition.target_node_id, None
         
         # Use default transition if available
