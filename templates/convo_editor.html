@@ -282,6 +282,7 @@
                 <option value="collect_input">Collect Input</option>
                 <option value="menu">Menu</option>
                 <option value="ai_chat">AI Chat</option>
+                <option value="process_media">Process Media</option>
                 <option value="message">Message</option>
             </select>
         </div>
@@ -603,6 +604,13 @@
                     system_prompt: "",
                     max_history_messages: 10,
                     include_chat_history: true
+                };
+            } else if (type === 'process_media') {
+                newNode.data.name = "Process Media";
+                newNode.data.process_media_config = {
+                    action_type: "ocr",
+                    params: {},
+                    output_variable: "media_result"
                 };
             }
 
@@ -966,6 +974,28 @@
                         <input type="text" value="${data.ai_config?.exit_node_id || ''}" onchange="updateAIConfig('${node.id}', 'exit_node_id', this.value)">
                         <small style="color: #6c7086;">Node to transition to on exit keyword</small>
                     </div>
+                    </div>
+                `;
+            } else if (node.type === 'process_media') {
+                html += `
+                    <div class="form-group">
+                        <label>Action Type</label>
+                        <select onchange="updateProcessMediaConfig('${node.id}', 'action_type', this.value)">
+                            <option value="ocr" ${data.process_media_config?.action_type === 'ocr' ? 'selected' : ''}>OCR</option>
+                            <option value="forward" ${data.process_media_config?.action_type === 'forward' ? 'selected' : ''}>Forward</option>
+                            <option value="email" ${data.process_media_config?.action_type === 'email' ? 'selected' : ''}>Email</option>
+                            <option value="save" ${data.process_media_config?.action_type === 'save' ? 'selected' : ''}>Save</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Output Variable</label>
+                        <input type="text" value="${data.process_media_config?.output_variable || ''}" onchange="updateProcessMediaConfig('${node.id}', 'output_variable', this.value)">
+                        <small style="color: #6c7086;">Variable to store result (e.g. OCR text)</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Params (JSON)</label>
+                        <textarea style="font-family: monospace; min-height: 80px;" onchange="updateProcessMediaParams('${node.id}', this.value)">${JSON.stringify(data.process_media_config?.params || {}, null, 2)}</textarea>
+                    </div>
                 `;
             }
 
@@ -975,6 +1005,10 @@
                 data.transitions.forEach((t, i) => {
                     html += `
                     <div style="border: 1px solid #45475a; padding: 5px; margin-bottom: 5px; border-radius: 4px;">
+                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                            <span style="font-weight: bold; font-size: 0.8rem;">Transition #${i + 1}</span>
+                            <button onclick="deleteTransition('${node.id}', ${i})" style="background-color: #f38ba8; color: #1e1e2e; padding: 2px 6px; font-size: 0.7rem;">Delete</button>
+                        </div>
                         <div class="form-group">
                             <label>Target Node</label>
                             <select onchange="updateTransition('${node.id}', ${i}, 'target_node_id', this.value)">
@@ -1011,8 +1045,9 @@
                 `;
                 });
             } else {
-                html += `<p style="font-size: 0.8rem; color: #6c7086;">No transitions. Drag from output port to add.</p>`;
+                html += `<p style="font-size: 0.8rem; color: #6c7086;">No transitions.</p>`;
             }
+            html += `<button onclick="addTransition('${node.id}')" style="width: 100%; margin-top: 5px; background-color: var(--accent-color); color: var(--bg-color);">+ Add Transition</button>`;
 
             // Actions List
             html += `<h3 style="margin-top: 15px;">Actions</h3>`;
@@ -1194,6 +1229,27 @@
             }
         }
 
+        function updateProcessMediaConfig(id, field, value) {
+            const node = nodes.find(n => n.id === id);
+            if (node) {
+                if (!node.data.process_media_config) node.data.process_media_config = {};
+                node.data.process_media_config[field] = value;
+            }
+        }
+
+        function updateProcessMediaParams(id, jsonString) {
+            const node = nodes.find(n => n.id === id);
+            if (node) {
+                try {
+                    const params = JSON.parse(jsonString);
+                    if (!node.data.process_media_config) node.data.process_media_config = {};
+                    node.data.process_media_config.params = params;
+                } catch (err) {
+                    alert('Invalid JSON for params: ' + err.message);
+                }
+            }
+        }
+
         function updateTransition(nodeId, index, field, value) {
             const node = nodes.find(n => n.id === nodeId);
             if (node && node.data.transitions[index]) {
@@ -1258,6 +1314,48 @@
             if (node && node.data.transitions[index] && node.data.transitions[index].condition) {
                 node.data.transitions[index].condition[field] = value;
             }
+        }
+
+        function addTransition(nodeId) {
+            const node = nodes.find(n => n.id === nodeId);
+            if (node) {
+                if (!node.data.transitions) node.data.transitions = [];
+                node.data.transitions.push({
+                    target_node_id: "",
+                    label: "",
+                    condition: null
+                });
+                renderProperties(nodeId);
+            }
+        }
+
+        function deleteTransition(nodeId, index) {
+            const node = nodes.find(n => n.id === nodeId);
+            if (node && node.data.transitions) {
+                if (confirm('Delete this transition?')) {
+                    node.data.transitions.splice(index, 1);
+                    rebuildConnections();
+                    renderConnections();
+                    renderProperties(nodeId);
+                }
+            }
+        }
+
+        function rebuildConnections() {
+            connections = [];
+            nodes.forEach(n => {
+                if (n.data.transitions) {
+                    n.data.transitions.forEach(t => {
+                        if (t.target_node_id) {
+                            connections.push({
+                                from: n.id,
+                                to: t.target_node_id,
+                                label: t.label
+                            });
+                        }
+                    });
+                }
+            });
         }
 
         // --- Action Management ---
