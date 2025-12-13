@@ -1,0 +1,19 @@
+{
+    "id": "node_email_contract",
+    "type": "process_media",
+    "name": "Email Signed Contract",
+    "process_media_config": {
+        "action_type": "email",
+        "email_config": {
+            "smtp_server": "smtp.mailgun.org",
+            "smtp_port": 587,
+            "username": "postmaster@mg.example.com",
+            "password": "secret_password",
+            "from_email": "contracts@example.com",
+            "to_email": "{{user_email}}",
+            "subject": "Your Signed Contract - {{contract_id}}",
+            "body": "Hi {{user_name}},\n\nPlease find your signed contract attached.\n\nBest,\nCompany Team"
+        }
+    },
+    "default_transition": "node_email_sent_msg"
+}

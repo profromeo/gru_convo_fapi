@@ -817,33 +817,7 @@ class ConvoService:
 
         if next_node:
             session.current_node_id = next_node.id
-            
-            # Prepare next node message
-            next_message = next_node.message or "Media processed."
-            message = self._render_template(next_message, session.context)
-            
-            requires_input = next_node.collect_input
-            input_type = next_node.input_type if next_node.collect_input else None
-            input_field = next_node.input_field if next_node.collect_input else None
-            completed = next_node.type == NodeType.END
-            
-            options = []
-            if next_node.type == NodeType.MENU and next_node.transitions:
-                for idx, transition in enumerate(next_node.transitions, 1):
-                    label = self._render_template(transition.label or f"Option {idx}", session.context)
-                    options.append({"value": str(idx), "label": label, "target_node_id": transition.target_node_id})
-            
-            return {
-                "message": message,
-                "node_id": next_node.id,
-                "next_node_id": next_node.id,
-                "node_type": next_node.type,
-                "requires_input": requires_input,
-                "input_type": input_type,
-                "input_field": input_field,
-                "completed": completed,
-                "options": options
-            }
+            return await self._chain_nodes(session, convo, next_node.id)
         else:
             # If no next node, stay on current node or end
             message = self._render_template(node.message or f"Media processing complete: {result_details}", session.context)
@@ -943,65 +917,9 @@ class ConvoService:
                     "options": options
                 }
             
-            # If we have a next node, transition to it
+            # If we have a next node, transition to it (and chain if needed)
             if next_node_id:
-                next_node = next(
-                    (n for n in convo.nodes if n.id == next_node_id),
-                    None
-                )
-                
-                if not next_node:
-                    raise APIServiceException(
-                        message=f"Target node '{next_node_id}' not found",
-                        http_status_code=500
-                    )
-                
-                # Update session to new node
-                session.current_node_id = next_node_id
-                
-                # Render next node's message with context variables
-                next_node_message = self._render_template(
-                    next_node.message or "",
-                    session.context
-                )
-                
-                # Add bot response to history
-                session.history.append(ChatMessage(
-                    role="assistant",
-                    content=next_node_message,
-                    node_id=next_node.id,
-                    timestamp=datetime.utcnow()
-                ).model_dump())
-                
-                # Use the next node's rendered message
-                response_message = next_node_message
-                
-                # Build options for the next node
-                options = []
-                if next_node.type == NodeType.MENU and next_node.transitions:
-                    for idx, transition in enumerate(next_node.transitions, 1):
-                        # Render transition labels with context
-                        label = self._render_template(
-                            transition.label or f"Option {idx}",
-                            session.context
-                        )
-                        options.append({
-                            "value": str(idx),
-                            "label": label,
-                            "target_node_id": transition.target_node_id
-                        })
-                
-                return {
-                    "message": response_message,
-                    "node_id": next_node.id,
-                    "next_node_id": next_node.id,
-                    "node_type": next_node.type,
-                    "requires_input": next_node.collect_input,
-                    "input_type": next_node.input_type if next_node.collect_input else None,
-                    "input_field": next_node.input_field if next_node.collect_input else None,
-                    "completed": next_node.type == NodeType.END,
-                    "options": options
-                }
+                return await self._chain_nodes(session, convo, next_node_id)
             else:
                 # No transition - stay on current node
                 session.history.append(ChatMessage(
@@ -1036,7 +954,10 @@ class ConvoService:
                     "input_field": node.input_field if node.collect_input else None,
                     "completed": False,
                     "options": options
-                }
+                }    
+
+                
+
                 
         except APIServiceException:
             raise
@@ -1149,6 +1070,121 @@ class ConvoService:
             logger.error(f"Error rendering template: {e}")
             return template
     
+    async def _chain_nodes(
+        self,
+        session: ChatSession,
+        convo: ConvoDefinition,
+        start_node_id: str,
+        initial_messages: List[str] = None
+    ) -> Dict[str, Any]:
+        """Process a chain of nodes automatically."""
+        combined_messages = initial_messages or []
+        next_node_id = start_node_id
+        
+        loop_counter = 0
+        max_loops = 50
+        
+        node = None
+        
+        while next_node_id:
+            # Loop protection
+            loop_counter += 1
+            if loop_counter > max_loops:
+                logger.error(f"Infinite loop detected in node chaining: {next_node_id}")
+                break
+                
+            node = next(
+                (n for n in convo.nodes if n.id == next_node_id),
+                None
+            )
+            
+            if not node:
+                raise APIServiceException(
+                    message=f"Target node '{next_node_id}' not found",
+                    http_status_code=500
+                )
+            
+            # Update session to new node
+            session.current_node_id = next_node_id
+            
+            # Render node's message with context variables
+            # Note: For the *very first* node in the chain, if it came from an external process (like process_media),
+            # the message might have already been processed or needs to be skipped if we just want to leverage transitions?
+            # Actually, `start_node_id` here is usually the *next* node we want to jump to.
+            # So we should process it fully.
+            
+            node_message = self._render_template(
+                node.message or "",
+                session.context
+            )
+            
+            # Add bot response to history
+            session.history.append(ChatMessage(
+                role="assistant",
+                content=node_message,
+                node_id=node.id,
+                timestamp=datetime.utcnow()
+            ).model_dump())
+            
+            # Accumulate message
+            combined_messages.append(node_message)
+            
+            # Check if we should chain to next node (MESSAGE type)
+            should_chain = False
+            next_next_node_id = None
+            
+            if node.type == NodeType.MESSAGE:
+                # 1. Evaluate conditional transitions
+                next_next_node_id = await self._evaluate_transitions(session, node, "")
+                
+                if not next_next_node_id:
+                    # 2. Check for first unconditional transition
+                    if node.transitions:
+                        for transition in node.transitions:
+                            if not transition.condition:
+                                next_next_node_id = transition.target_node_id
+                                break
+                
+                if not next_next_node_id:
+                     # 3. Check default transition
+                     next_next_node_id = node.default_transition
+                     
+                if next_next_node_id:
+                    should_chain = True
+                    next_node_id = next_next_node_id
+            
+            if not should_chain:
+                # Stop here
+                next_node_id = None
+                
+        # We stopped at `node`. Return response.
+        response_message = "\n\n".join(combined_messages)
+        
+        options = []
+        if node.type == NodeType.MENU and node.transitions:
+            for idx, transition in enumerate(node.transitions, 1):
+                label = self._render_template(
+                    transition.label or f"Option {idx}",
+                    session.context
+                )
+                options.append({
+                    "value": str(idx),
+                    "label": label,
+                    "target_node_id": transition.target_node_id
+                })
+        
+        return {
+            "message": response_message,
+            "node_id": node.id,
+            "next_node_id": None,
+            "node_type": node.type,
+            "requires_input": node.collect_input,
+            "input_type": node.input_type if node.collect_input else None,
+            "input_field": node.input_field if node.collect_input else None,
+            "completed": node.type == NodeType.END,
+            "options": options
+        }
+
     async def _evaluate_transitions(
         self,
         session: ChatSession,

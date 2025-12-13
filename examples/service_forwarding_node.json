@@ -1,0 +1,35 @@
+{
+    "id": "node_process_receipt",
+    "type": "process_media",
+    "name": "Process Receipt Service",
+    "process_media_config": {
+        "action_type": "service",
+        "output_variable": "receipt_data",
+        "service_config": {
+            "url": "https://api.example.com/v1/receipts/process",
+            "method": "POST",
+            "headers": {
+                "Authorization": "Bearer {{api_key}}"
+            },
+            "input": [
+                "media_url",
+                "user_id"
+            ],
+            "output": [
+                "processed_amount",
+                "vendor_name"
+            ],
+            "timeout": 60
+        }
+    },
+    "transitions": [
+        {
+            "target_node_id": "node_confirm_receipt",
+            "condition": {
+                "type": "equals",
+                "field": "receipt_data.status",
+                "value": "success"
+            }
+        }
+    ]
+}
