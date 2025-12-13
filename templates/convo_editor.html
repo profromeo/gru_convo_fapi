@@ -980,10 +980,11 @@
                 html += `
                     <div class="form-group">
                         <label>Action Type</label>
-                        <select onchange="updateProcessMediaConfig('${node.id}', 'action_type', this.value)">
+                        <select onchange="updateProcessMediaConfig('${node.id}', 'action_type', this.value); renderProperties('${node.id}');">
                             <option value="ocr" ${data.process_media_config?.action_type === 'ocr' ? 'selected' : ''}>OCR</option>
-                            <option value="forward" ${data.process_media_config?.action_type === 'forward' ? 'selected' : ''}>Forward</option>
+                            <option value="service" ${data.process_media_config?.action_type === 'service' ? 'selected' : ''}>Service (Forward)</option>
                             <option value="email" ${data.process_media_config?.action_type === 'email' ? 'selected' : ''}>Email</option>
+                            <option value="ai_service" ${data.process_media_config?.action_type === 'ai_service' ? 'selected' : ''}>AI Service</option>
                             <option value="save" ${data.process_media_config?.action_type === 'save' ? 'selected' : ''}>Save</option>
                         </select>
                     </div>
@@ -992,6 +993,100 @@
                         <input type="text" value="${data.process_media_config?.output_variable || ''}" onchange="updateProcessMediaConfig('${node.id}', 'output_variable', this.value)">
                         <small style="color: #6c7086;">Variable to store result (e.g. OCR text)</small>
                     </div>
+
+                    ${data.process_media_config?.action_type === 'service' ? `
+                    <div style="border: 1px solid #45475a; padding: 10px; margin-top: 10px; border-radius: 4px; background-color: rgba(137, 180, 250, 0.05);">
+                        <h4 style="margin: 0 0 10px 0; color: var(--accent-color);">Service Config</h4>
+                        <div class="form-group">
+                            <label>URL</label>
+                            <input type="text" value="${data.process_media_config?.service_config?.url || ''}" onchange="updateProcessMediaServiceConfig('${node.id}', 'url', this.value)">
+                        </div>
+                        <div class="form-group">
+                            <label>Method</label>
+                            <select onchange="updateProcessMediaServiceConfig('${node.id}', 'method', this.value)">
+                                <option value="POST" ${data.process_media_config?.service_config?.method === 'POST' ? 'selected' : ''}>POST</option>
+                                <option value="PUT" ${data.process_media_config?.service_config?.method === 'PUT' ? 'selected' : ''}>PUT</option>
+                            </select>
+                        </div>
+                         <div class="form-group">
+                            <label>Headers (JSON)</label>
+                            <textarea style="min-height: 60px; font-family: monospace; font-size: 0.85rem;" onchange="updateProcessMediaServiceHeaders('${node.id}', this.value)">${JSON.stringify(data.process_media_config?.service_config?.headers || {}, null, 2)}</textarea>
+                        </div>
+                         <div class="form-group">
+                            <label>Input Fields (comma-separated)</label>
+                            <input type="text" value="${data.process_media_config?.service_config?.input?.join(', ') || ''}" onchange="updateProcessMediaServiceConfig('${node.id}', 'input', this.value.split(',').map(s => s.trim()).filter(s => s))">
+                        </div>
+                    </div>
+                    ` : ''}
+
+                    ${data.process_media_config?.action_type === 'email' ? `
+                     <div style="border: 1px solid #45475a; padding: 10px; margin-top: 10px; border-radius: 4px; background-color: rgba(137, 180, 250, 0.05);">
+                        <h4 style="margin: 0 0 10px 0; color: var(--accent-color);">Email Config</h4>
+                        <div class="form-group">
+                            <label>SMTP Server</label>
+                            <input type="text" value="${data.process_media_config?.email_config?.smtp_server || ''}" onchange="updateProcessMediaEmailConfig('${node.id}', 'smtp_server', this.value)">
+                        </div>
+                         <div class="form-group">
+                            <label>SMTP Port</label>
+                            <input type="number" value="${data.process_media_config?.email_config?.smtp_port || 587}" onchange="updateProcessMediaEmailConfig('${node.id}', 'smtp_port', parseInt(this.value))">
+                        </div>
+                         <div class="form-group">
+                            <label>Username</label>
+                            <input type="text" value="${data.process_media_config?.email_config?.username || ''}" onchange="updateProcessMediaEmailConfig('${node.id}', 'username', this.value)">
+                        </div>
+                         <div class="form-group">
+                            <label>Password</label>
+                            <input type="password" value="${data.process_media_config?.email_config?.password || ''}" onchange="updateProcessMediaEmailConfig('${node.id}', 'password', this.value)">
+                        </div>
+                         <div class="form-group">
+                            <label>From Email</label>
+                            <input type="text" value="${data.process_media_config?.email_config?.from_email || ''}" onchange="updateProcessMediaEmailConfig('${node.id}', 'from_email', this.value)">
+                        </div>
+                         <div class="form-group">
+                            <label>To Email</label>
+                            <input type="text" value="${data.process_media_config?.email_config?.to_email || ''}" onchange="updateProcessMediaEmailConfig('${node.id}', 'to_email', this.value)">
+                        </div>
+                         <div class="form-group">
+                            <label>Subject</label>
+                            <input type="text" value="${data.process_media_config?.email_config?.subject || ''}" onchange="updateProcessMediaEmailConfig('${node.id}', 'subject', this.value)">
+                        </div>
+                         <div class="form-group">
+                            <label>Body</label>
+                            <textarea style="min-height: 80px;" onchange="updateProcessMediaEmailConfig('${node.id}', 'body', this.value)">${data.process_media_config?.email_config?.body || ''}</textarea>
+                        </div>
+                    </div>
+                    ` : ''}
+
+                    ${data.process_media_config?.action_type === 'ai_service' ? `
+                     <div style="border: 1px solid #45475a; padding: 10px; margin-top: 10px; border-radius: 4px; background-color: rgba(137, 180, 250, 0.05);">
+                        <h4 style="margin: 0 0 10px 0; color: var(--accent-color);">AI Service Config</h4>
+                        <div class="form-group">
+                            <label>Query</label>
+                            <textarea style="min-height: 60px;" onchange="updateProcessMediaAiConfig('${node.id}', 'query', this.value)">${data.process_media_config?.ai_service_config?.query || ''}</textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>System Message</label>
+                            <textarea style="min-height: 60px;" onchange="updateProcessMediaAiConfig('${node.id}', 'system_message', this.value)">${data.process_media_config?.ai_service_config?.system_message || ''}</textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>LLM Model</label>
+                            <input type="text" value="${data.process_media_config?.ai_service_config?.llm_model || 'llava'}" onchange="updateProcessMediaAiConfig('${node.id}', 'llm_model', this.value)">
+                        </div>
+                         <div class="form-group">
+                            <label>LLM Provider</label>
+                            <input type="text" value="${data.process_media_config?.ai_service_config?.llm_provider || 'ollama'}" onchange="updateProcessMediaAiConfig('${node.id}', 'llm_provider', this.value)">
+                        </div>
+                         <div class="form-group">
+                            <label>Temperature</label>
+                            <input type="number" step="0.1" value="${data.process_media_config?.ai_service_config?.temperature || 0.1}" onchange="updateProcessMediaAiConfig('${node.id}', 'temperature', parseFloat(this.value))">
+                        </div>
+                        <div class="form-group">
+                            <label>Metadata (JSON)</label>
+                            <textarea style="min-height: 60px; font-family: monospace; font-size: 0.85rem;" onchange="updateProcessMediaAiMetadata('${node.id}', this.value)">${JSON.stringify(data.process_media_config?.ai_service_config?.metadata || {}, null, 2)}</textarea>
+                        </div>
+                    </div>
+                    ` : ''}
+
                     <div class="form-group">
                         <label>Params (JSON)</label>
                         <textarea style="font-family: monospace; min-height: 80px;" onchange="updateProcessMediaParams('${node.id}', this.value)">${JSON.stringify(data.process_media_config?.params || {}, null, 2)}</textarea>
@@ -1246,6 +1341,61 @@
                     node.data.process_media_config.params = params;
                 } catch (err) {
                     alert('Invalid JSON for params: ' + err.message);
+                }
+            }
+        }
+
+        function updateProcessMediaServiceConfig(id, field, value) {
+            const node = nodes.find(n => n.id === id);
+            if (node) {
+                if (!node.data.process_media_config) node.data.process_media_config = {};
+                if (!node.data.process_media_config.service_config) node.data.process_media_config.service_config = {};
+                node.data.process_media_config.service_config[field] = value;
+            }
+        }
+
+        function updateProcessMediaServiceHeaders(id, jsonString) {
+            const node = nodes.find(n => n.id === id);
+            if (node) {
+                try {
+                    const headers = JSON.parse(jsonString);
+                    if (!node.data.process_media_config) node.data.process_media_config = {};
+                    if (!node.data.process_media_config.service_config) node.data.process_media_config.service_config = {};
+                    node.data.process_media_config.service_config.headers = headers;
+                } catch (err) {
+                    alert('Invalid JSON for headers: ' + err.message);
+                }
+            }
+        }
+
+        function updateProcessMediaEmailConfig(id, field, value) {
+            const node = nodes.find(n => n.id === id);
+            if (node) {
+                if (!node.data.process_media_config) node.data.process_media_config = {};
+                if (!node.data.process_media_config.email_config) node.data.process_media_config.email_config = {};
+                node.data.process_media_config.email_config[field] = value;
+            }
+        }
+
+        function updateProcessMediaAiConfig(id, field, value) {
+            const node = nodes.find(n => n.id === id);
+            if (node) {
+                if (!node.data.process_media_config) node.data.process_media_config = {};
+                if (!node.data.process_media_config.ai_service_config) node.data.process_media_config.ai_service_config = {};
+                node.data.process_media_config.ai_service_config[field] = value;
+            }
+        }
+
+        function updateProcessMediaAiMetadata(id, jsonString) {
+            const node = nodes.find(n => n.id === id);
+            if (node) {
+                try {
+                    const metadata = JSON.parse(jsonString);
+                    if (!node.data.process_media_config) node.data.process_media_config = {};
+                    if (!node.data.process_media_config.ai_service_config) node.data.process_media_config.ai_service_config = {};
+                    node.data.process_media_config.ai_service_config.metadata = metadata;
+                } catch (err) {
+                    alert('Invalid JSON for metadata: ' + err.message);
                 }
             }
         }

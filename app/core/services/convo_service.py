@@ -723,10 +723,52 @@ class ConvoService:
                 if download_success:
                     logger.info(f"Media downloaded successfully to {local_file_path}")
                     
-                    # Placeholder for actual processing logic (OCR, etc.)
-                    # In a real impl, we would use external services or libs here
-                    processed_successfully = True
-                    result_details = f"Processed {media_url} via {config.action_type}"
+                    # Update session context with media info for downstream usage
+                    session.context["media_local_path"] = local_file_path
+                    session.context["media_url"] = media_url # Ensure this is present
+                    
+                    # Process based on action type
+                    action_type = config.action_type
+                    
+                    if action_type == ProcessMediaActionType.SERVICE:
+                        if config.service_config:
+                             # Use specialized service action handling to include file
+                             result_str = await self._process_media_service_action(
+                                 session, 
+                                 config.service_config, 
+                                 local_file_path,
+                                 media_url
+                             )
+                             result_details = f"Forwarded to service: {result_str}"
+                             processed_successfully = True
+                        else:
+                             raise APIServiceException("Service config missing for SERVICE action")
+                             
+                    elif action_type == ProcessMediaActionType.EMAIL:
+                        if config.email_config:
+                            await self._process_media_email_action(session, config.email_config, local_file_path, media_url)
+                            result_details = f"Emailed to {config.email_config.to_email}"
+                            processed_successfully = True
+                        else:
+                             raise APIServiceException("Email config missing for EMAIL action")
+                             
+                    elif action_type == ProcessMediaActionType.AI_SERVICE:
+                        if config.ai_service_config:
+                            response = await self._process_media_ai_service_action(session, config.ai_service_config, local_file_path)
+                            result_details = response
+                            processed_successfully = True
+                        else:
+                             raise APIServiceException("AI service config missing for AI_SERVICE action")
+                             
+                    elif action_type == ProcessMediaActionType.OCR:
+                        # Placeholder for OCR
+                         processed_successfully = True
+                         result_details = f"Processed {media_url} via {config.action_type}"
+                         
+                    else:
+                        # Default or basic forward/save
+                        processed_successfully = True
+                        result_details = f"Processed {media_url} via {config.action_type}"
                     
                     # Store result
                     if config.output_variable:
@@ -734,8 +776,6 @@ class ConvoService:
                     
                     session.context["processed_media_result"] = result_details
                     
-                    # Clear media_url if it was temporary
-                    # session.context.pop("media_url", None)
                 else:
                     logger.error("Failed to download media file")
                     result_details = "Failed to retrieve media file"
@@ -748,6 +788,8 @@ class ConvoService:
                 if local_file_path and os.path.exists(local_file_path):
                     try:
                         os.remove(local_file_path)
+                        # clean up context path
+                        session.context.pop("media_local_path", None)
                     except Exception as e:
                         logger.warning(f"Failed to delete temp file {local_file_path}: {e}")
 
@@ -1352,6 +1394,216 @@ class ConvoService:
             if action.on_failure:
                 logger.info(f"Action failed, could jump to node: {action.on_failure}")
 
+    async def _process_media_service_action(
+        self,
+        session: ChatSession,
+        api_config: Any, # ApiAction
+        file_path: str,
+        media_url: str
+    ) -> str:
+        """
+        Execute a service action with media upload.
+        Returns a summary string of the result.
+        """
+        import os
+        try:
+            # Prepare input data (form fields)
+            input_data = {}
+            for input_var in api_config.input:
+                if input_var in session.context:
+                    # Form data usually expects strings
+                    input_data[input_var] = str(session.context[input_var])
+                else:
+                    logger.warning(f"Input variable '{input_var}' not found in session context")
+            
+            # headers
+            headers = api_config.headers or {}
+            # Do NOT set Content-Type to application/json, httpx will set multipart/form-data with boundary
+            if "Content-Type" in headers and "json" in headers["Content-Type"]:
+                del headers["Content-Type"]
+            
+            # Prepare file
+            filename = os.path.basename(file_path)
+            
+            # Using context manager for file
+            async with httpx.AsyncClient(timeout=api_config.timeout or 60.0) as client:
+                logger.info(f"Uploading media to {api_config.url} ({api_config.method})")
+                
+                with open(file_path, 'rb') as f:
+                    # 'files' dict: key is field name, value is (filename, file_object, content_type)
+                    files = {
+                        'file': (filename, f, 'application/octet-stream') 
+                    }
+                    
+                    if api_config.method.upper() == "POST":
+                        response = await client.post(
+                            api_config.url,
+                            data=input_data,
+                            files=files,
+                            headers=headers
+                        )
+                    elif api_config.method.upper() == "PUT":
+                        response = await client.put(
+                            api_config.url,
+                            data=input_data,
+                            files=files,
+                            headers=headers
+                        )
+                    else:
+                         logger.warning(f"Method {api_config.method} might not support file upload body.")
+                         raise APIServiceException(f"Method {api_config.method} not supported for media upload")
+
+                response.raise_for_status()
+
+                response_data = response.json()
+                logger.debug(f"API output: {api_config.output}")
+                logger.debug(f"API call successful: {response.status_code}")
+                logger.debug(f"Response data: {response_data}")
+                
+                # Store output variables in session context
+                for output_var in api_config.output:
+                    found, value = self._find_value_in_nested_dict(response_data, output_var)
+                    if found:
+                        session.context[output_var] = value
+                        logger.debug(f"Stored '{output_var}' in session context: {value}")
+                    else:
+                        logger.warning(f"Output variable '{output_var}' not found in API response")
+
+                return f"Success {response.status_code}"
+            
+        except Exception as e:
+            logger.error(f"Error in media service action: {e}", exc_info=True)
+            raise APIServiceException(f"Service upload failed: {str(e)}")
+
+    async def _process_media_email_action(
+        self,
+        session: ChatSession,
+        config: Any, # EmailConfig
+        file_path: str,
+        media_url: str
+    ) -> None:
+        """Send an email with the media attachment."""
+        import smtplib
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+        from email.mime.base import MIMEBase
+        from email import encoders
+        
+        try:
+            # Render templates
+            to_email = self._render_template(config.to_email, session.context)
+            subject = self._render_template(config.subject, session.context)
+            body = self._render_template(config.body, session.context)
+            
+            msg = MIMEMultipart()
+            msg['From'] = config.from_email
+            msg['To'] = to_email
+            msg['Subject'] = subject
+            
+            msg.attach(MIMEText(body, 'plain'))
+            
+            # Attach file
+            filename = media_url.split("/")[-1]
+            if not filename:
+                filename = "attachment"
+                
+            with open(file_path, "rb") as attachment:
+                part = MIMEBase('application', 'octet-stream')
+                part.set_payload(attachment.read())
+                encoders.encode_base64(part)
+                part.add_header(
+                    'Content-Disposition',
+                    f"attachment; filename= {filename}",
+                )
+                msg.attach(part)
+            
+            # Connect to SMTP server
+            # Note: synchronous smtplib is used here. For high throughput, use aiosmtplib.
+            # Assuming low volume for now or wrap in run_in_executor if needed.
+            server = smtplib.SMTP(config.smtp_server, config.smtp_port)
+            server.starttls()
+            server.login(config.username, config.password)
+            text = msg.as_string()
+            server.sendmail(config.from_email, to_email, text)
+            server.quit()
+            
+            logger.info(f"Email sent successfully to {to_email}")
+            
+        except Exception as e:
+            logger.error(f"Error sending email: {e}")
+            raise APIServiceException(f"Failed to send email: {str(e)}")
+
+    async def _process_media_ai_service_action(
+        self,
+        session: ChatSession,
+        config: Any, # AiMediaConfig
+        file_path: str
+    ) -> str:
+        """Process media with AI service."""
+        import base64
+        
+        try:
+            # Encode image to base64
+            with open(file_path, "rb") as image_file:
+                encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+            
+            # Authenticate with AI Service
+            login_url = f"{self.ai_service_url}/api/v1/auth/login"
+            login_payload = {
+                "email": self.settings.ai_system_user,
+                "password": self.settings.ai_system_password
+            }
+            
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                login_response = await client.post(login_url, json=login_payload)
+                login_response.raise_for_status()
+                token = login_response.json()["access_token"]
+            
+            # Prepare payload
+            query = self._render_template(config.query, session.context)
+            
+            payload = {
+                "query": query,
+                "image_base64": encoded_string,
+                "system_message": config.system_message,
+                "session_id": session.session_id,
+                "max_documents": 10,
+                "min_score": 0.7,
+                "metadata": config.metadata,
+                "include_metadata": True,
+                "include_chat_history": config.include_chat_history,
+                "max_history_messages": config.max_history_messages,
+                "temperature": config.temperature,
+                "llm_model": config.llm_model,
+                "llm_provider": config.llm_provider,
+                "evaluation_metrics": False,
+                # "context": str(session.context) # Optional
+            }
+            
+            # Call AI Service
+            # Assuming a generic chat endpoint that handles images if image_base64 is present
+            # or a specific endpoint if needed. Using the query endpoint as per standard.
+            url = f"{self.ai_service_url}/api/v1/query/agent" # Defaulting to agent or configurable?
+            # User example schema matches the query endpoint payload structure usually seen.
+            
+            headers = {
+                'Content-Type': 'application/json',
+                'Authorization': f"Bearer {token}"
+            }
+            
+            async with httpx.AsyncClient(timeout=120.0) as client: # Longer timeout for image processing
+                response = await client.post(url, json=payload, headers=headers)
+                
+                if response.status_code != 200:
+                    logger.error(f"AI service error: {response.status_code} - {response.text}")
+                    raise APIServiceException(f"AI service returned error: {response.text}")
+                
+                result = response.json()
+                return result.get("answer", "")
+                
+        except Exception as e:
+            logger.error(f"Error calling AI service for media: {e}")
+            raise APIServiceException(f"Failed to process media with AI service: {str(e)}")
     async def _validate_input(
         self,
         user_input: str,

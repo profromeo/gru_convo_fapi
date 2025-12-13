@@ -26,7 +26,9 @@ class ProcessMediaActionType(str, Enum):
     """Types of actions for processing media."""
     OCR = "ocr"
     FORWARD = "forward"
+    SERVICE = "service"
     EMAIL = "email"
+    AI_SERVICE = "ai_service"
     SAVE = "save"
 
 
@@ -40,12 +42,40 @@ class MinioConfig(BaseModel):
     secure: bool = Field(default=True, description="Use HTTPS")
 
 
+class EmailConfig(BaseModel):
+    """Configuration for sending emails."""
+    smtp_server: str = Field(..., description="SMTP server host")
+    smtp_port: int = Field(default=587, description="SMTP server port")
+    username: str = Field(..., description="SMTP username")
+    password: str = Field(..., description="SMTP password")
+    from_email: str = Field(..., description="From email address")
+    to_email: str = Field(..., description="To email address (can be template)")
+    subject: str = Field(..., description="Email subject (can be template)")
+    body: str = Field(..., description="Email body (can be template)")
+
+class AiMediaConfig(BaseModel):
+    """Configuration for AI service media processing."""
+    query: str = Field(..., description="Query to send to AI (can be template)")
+    system_message: Optional[str] = Field(None, description="System message")
+    llm_model: str = Field(default="llava", description="LLM model to use")
+    llm_provider: str = Field(default="ollama", description="LLM provider")
+    temperature: float = Field(default=0.1, description="Temperature")
+    max_tokens: Optional[int] = Field(None, description="Max tokens")
+    include_chat_history: bool = Field(default=False, description="Include chat history")
+    max_history_messages: int = Field(default=0, description="Max history messages")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Metadata")
+
 class ProcessMediaConfig(BaseModel):
     """Configuration for processing media."""
     action_type: ProcessMediaActionType = Field(..., description="Type of action to perform")
     params: Dict[str, Any] = Field(default_factory=dict, description="Parameters for the action")
     output_variable: Optional[str] = Field(None, description="Variable to store result in context") # e.g. for OCR text
     minio_config: Optional[MinioConfig] = Field(None, description="Optional MinIO configuration for accessing the media")
+    
+    # Action specific configs
+    service_config: Optional['ApiAction'] = Field(None, description="Configuration for SERVICE action")
+    email_config: Optional[EmailConfig] = Field(None, description="Configuration for EMAIL action")
+    ai_service_config: Optional[AiMediaConfig] = Field(None, description="Configuration for AI_SERVICE action")
 
 
 class ChatMessageRequest(BaseModel):
