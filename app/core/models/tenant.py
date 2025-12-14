@@ -23,7 +23,9 @@ class Tenant(BaseModel):
     whatsapp_bot_enabled: bool = Field(default=True, description="Whether the WhatsApp bot is enabled for this tenant")
     twilio_account_sid: Optional[str] = Field(None, description="Twilio Account SID")
     twilio_auth_token: Optional[str] = Field(None, description="Twilio Auth Token")
+    twilio_auth_token: Optional[str] = Field(None, description="Twilio Auth Token")
     twilio_whatsapp_number: Optional[str] = Field(None, description="Twilio WhatsApp Number")
+    telegram_bot_token: Optional[str] = Field(None, description="Telegram Bot Token")
 
     # Dynamic Conversation Configuration
     default_convo_id: Optional[str] = Field(None, description="Default conversation flow ID")
@@ -77,7 +79,9 @@ class TenantCreate(BaseModel):
     whatsapp_bot_enabled: bool = Field(default=True, description="Whether the WhatsApp bot is enabled")
     twilio_account_sid: Optional[str] = Field(None, description="Twilio Account SID")
     twilio_auth_token: Optional[str] = Field(None, description="Twilio Auth Token")
+    twilio_auth_token: Optional[str] = Field(None, description="Twilio Auth Token")
     twilio_whatsapp_number: Optional[str] = Field(None, description="Twilio WhatsApp Number")
+    telegram_bot_token: Optional[str] = Field(None, description="Telegram Bot Token")
     
     # Dynamic Conversation Configuration
     default_convo_id: Optional[str] = Field(None, description="Default conversation flow ID")
@@ -104,7 +108,9 @@ class TenantUpdate(BaseModel):
     whatsapp_bot_enabled: Optional[bool] = Field(None, description="Whether the WhatsApp bot is enabled")
     twilio_account_sid: Optional[str] = Field(None, description="Twilio Account SID")
     twilio_auth_token: Optional[str] = Field(None, description="Twilio Auth Token")
+    twilio_auth_token: Optional[str] = Field(None, description="Twilio Auth Token")
     twilio_whatsapp_number: Optional[str] = Field(None, description="Twilio WhatsApp Number")
+    telegram_bot_token: Optional[str] = Field(None, description="Telegram Bot Token")
     
     # Dynamic Conversation Configuration
     default_convo_id: Optional[str] = Field(None, description="Default conversation flow ID")

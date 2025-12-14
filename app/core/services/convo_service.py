@@ -494,7 +494,8 @@ class ConvoService:
                 input_field=actual_node.input_field if actual_node.collect_input else None,
                 completed=response_data.get("completed", False),
                 context=session.context,
-                options=response_data.get("options", [])
+                options=response_data.get("options", []),
+                metadata=response_data.get("metadata", {}),
             )
             
             logger.info(f"Continued chat session: {session.session_id}")
@@ -640,6 +641,9 @@ class ConvoService:
                 if ai_config.exit_keywords:
                     exit_instructions = f"\n\n(Type '{ai_config.exit_keywords[0]}' to exit AI chat)"
                 
+                # Check for Telegram Config
+                metadata = self._get_telegram_metadata(node, session)
+
                 return {
                     "message": ai_response + exit_instructions,
                     "node_id": node.id,
@@ -648,7 +652,8 @@ class ConvoService:
                     "input_type": "text",
                     "input_field": None,
                     "completed": False,
-                    "options": []
+                    "options": [],
+                    "metadata": metadata
                 }
                 
             except APIServiceException:
@@ -821,6 +826,10 @@ class ConvoService:
         else:
             # If no next node, stay on current node or end
             message = self._render_template(node.message or f"Media processing complete: {result_details}", session.context)
+            
+            # Check for Telegram Config
+            metadata = self._get_telegram_metadata(node, session)
+
             return {
                 "message": message,
                 "node_id": node.id,
@@ -830,7 +839,8 @@ class ConvoService:
                 "input_type": None,
                 "input_field": None,
                 "completed": node.type == NodeType.END,
-                "options": []
+                "options": [],
+                "metadata": metadata
             }
 
 
@@ -905,6 +915,9 @@ class ConvoService:
                             "target_node_id": transition.target_node_id
                         })
                 
+                # Check for Telegram Config for validation error
+                metadata = self._get_telegram_metadata(node, session)
+
                 return {
                     "message": validation_error,
                     "node_id": node.id,
@@ -914,7 +927,8 @@ class ConvoService:
                     "input_type": node.input_type if node.collect_input else None,
                     "input_field": node.input_field if node.collect_input else None,
                     "completed": False,
-                    "options": options
+                    "options": options,
+                    "metadata": metadata
                 }
             
             # If we have a next node, transition to it (and chain if needed)
@@ -931,6 +945,7 @@ class ConvoService:
                 
                 # Build options for current node
                 options = []
+                # (Existing logic for options...)
                 if node.type == NodeType.MENU and node.transitions:
                     for idx, transition in enumerate(node.transitions, 1):
                         # Render transition labels with context
@@ -944,6 +959,9 @@ class ConvoService:
                             "target_node_id": transition.target_node_id
                         })
                 
+                # Check for Telegram Config
+                metadata = self._get_telegram_metadata(node, session)
+                
                 return {
                     "message": response_message,
                     "node_id": node.id,
@@ -953,7 +971,8 @@ class ConvoService:
                     "input_type": node.input_type if node.collect_input else None,
                     "input_field": node.input_field if node.collect_input else None,
                     "completed": False,
-                    "options": options
+                    "options": options,
+                    "metadata": metadata
                 }    
 
                 
@@ -1005,6 +1024,9 @@ class ConvoService:
                         "target_node_id": transition.target_node_id
                     })
             
+            # Check for Telegram Config
+            metadata = self._get_telegram_metadata(node, session)
+
             return {
                 "message": rendered_message,
                 "node_id": node.id,
@@ -1013,7 +1035,8 @@ class ConvoService:
                 "input_type": node.input_type if node.collect_input else None,
                 "input_field": node.input_field if node.collect_input else None,
                 "completed": node.type == NodeType.END,
-                "options": options
+                "options": options,
+                "metadata": metadata
             }
             
         except Exception as e:
@@ -1023,6 +1046,21 @@ class ConvoService:
                 details={"error": str(e), "node_id": node.id},
                 http_status_code=500
             )
+
+    def _get_telegram_metadata(self, node: ConvoNode, session: ChatSession) -> Dict[str, Any]:
+        """Extract telegram metadata from node config."""
+        metadata = {}
+        if node and node.telegram_config:
+            if node.telegram_config.telegram_options:
+                metadata["telegram_options"] = node.telegram_config.telegram_options
+            
+            if node.telegram_config.data_list_variable:
+                data_list = session.context.get(node.telegram_config.data_list_variable)
+                if data_list:
+                    metadata["data_list"] = data_list
+                    metadata["list_key"] = node.telegram_config.list_key
+                    metadata["display_key"] = node.telegram_config.display_key
+        return metadata
     
     def _render_template(self, template: str, context: Dict[str, Any]) -> str:
         """Render a message template with context variables.
@@ -1173,6 +1211,9 @@ class ConvoService:
                     "target_node_id": transition.target_node_id
                 })
         
+        # Check for Telegram Config
+        metadata = self._get_telegram_metadata(node, session)
+        
         return {
             "message": response_message,
             "node_id": node.id,
@@ -1182,7 +1223,8 @@ class ConvoService:
             "input_type": node.input_type if node.collect_input else None,
             "input_field": node.input_field if node.collect_input else None,
             "completed": node.type == NodeType.END,
-            "options": options
+            "options": options,
+            "metadata": metadata
         }
 
     async def _evaluate_transitions(

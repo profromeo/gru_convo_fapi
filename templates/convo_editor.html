@@ -1016,6 +1016,10 @@
                             <label>Input Fields (comma-separated)</label>
                             <input type="text" value="${data.process_media_config?.service_config?.input?.join(', ') || ''}" onchange="updateProcessMediaServiceConfig('${node.id}', 'input', this.value.split(',').map(s => s.trim()).filter(s => s))">
                         </div>
+                        <div class="form-group">
+                            <label>Output Fields (comma-separated)</label>
+                            <input type="text" value="${data.process_media_config?.service_config?.output?.join(', ') || ''}" onchange="updateProcessMediaServiceConfig('${node.id}', 'output', this.value.split(',').map(s => s.trim()).filter(s => s))">
+                        </div>
                     </div>
                     ` : ''}
 

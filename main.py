@@ -35,6 +35,8 @@ def setup_logging():
     logging.getLogger("fastapi").setLevel(logging.INFO)
     logging.getLogger("pymongo").setLevel(logging.INFO)
     logging.getLogger("httpcore").setLevel(logging.INFO)
+    logging.getLogger("urllib3.connectionpool").setLevel(logging.INFO)
+    logging.getLogger("urllib3.util.retry").setLevel(logging.INFO)
     
     
     if settings.debug:

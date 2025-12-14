@@ -77,6 +77,13 @@ class ProcessMediaConfig(BaseModel):
     email_config: Optional[EmailConfig] = Field(None, description="Configuration for EMAIL action")
     ai_service_config: Optional[AiMediaConfig] = Field(None, description="Configuration for AI_SERVICE action")
 
+class TelegramNodeConfig(BaseModel):
+    """Configuration for Telegram specific options."""
+    telegram_options: Optional[List[Dict[str, str]]] = Field(None, description="Static telegram options")
+    data_list_variable: Optional[str] = Field(None, description="Context variable name for dynamic list")
+    list_key: Optional[str] = Field("id", description="Key to use for the value in dynamic list items")
+    display_key: Optional[str] = Field("label", description="Key to use for the label in dynamic list items")
+
 
 class ChatMessageRequest(BaseModel):
     """Request body for sending a chat message."""
@@ -180,6 +187,9 @@ class ConvoNode(BaseModel):
     
     # Process Media Configuration
     process_media_config: Optional[ProcessMediaConfig] = Field(None, description="Configuration for processing media")
+    
+    # Telegram Configuration
+    telegram_config: Optional[TelegramNodeConfig] = Field(None, description="Telegram specific configuration")
     
     # Transitions
     transitions: List[NodeTransition] = Field(default_factory=list, description="Possible transitions from this node")
