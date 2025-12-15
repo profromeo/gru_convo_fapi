@@ -1056,6 +1056,7 @@ class ConvoService:
             
             if node.telegram_config.data_list_variable:
                 data_list = session.context.get(node.telegram_config.data_list_variable)
+                data_list = [{"id": "001", "name": "item 1"}, {"id": "002", "name": "item 2"}, {"id": "003", "name": "item 3"}, {"id": "004", "name": "item 4"}, {"id": "005", "name": "item 5"}]
                 if data_list:
                     metadata["data_list"] = data_list
                     metadata["list_key"] = node.telegram_config.list_key

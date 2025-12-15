@@ -40,7 +40,8 @@ async def register(
             full_name=user_data.full_name,
             role=user_data.role,
             function=user_data.function,
-            metadata = user_data.metadata if user_data.metadata else {}
+            metadata = user_data.metadata if user_data.metadata else {},
+            tenant_uid=user_data.tenant_uid
         )
         
         logger.info(f"Successfully registered user: {user.email} with ID: {user.user_id}")
@@ -185,7 +186,8 @@ async def login_register_session(
             full_name=user_data.email,
             role=['user'],
             function=[],
-            metadata = {"origin": "chat_interface_debug_login_register"}
+            metadata = {"origin": "chat_interface_debug_login_register"},
+            tenant_uid=user_data.tenant_uid
             )
         
         user = await user_service.get_user_by_email(user_data.email)

@@ -73,7 +73,8 @@ class UserService:
                 "last_login": None,
                 "failed_login_attempts": 0,
                 "locked_until": None,
-                "metadata": metadata
+                "metadata": metadata,
+                "user_id": user_id
             }
             
             await self.users_collection.insert_one(user_doc)

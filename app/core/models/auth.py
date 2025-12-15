@@ -7,6 +7,7 @@ class UserLogin(BaseModel):
     """User login request model."""
     email: EmailStr
     password: str
+    tenant_uid: Optional[str] = None
     metadata : Optional[dict] = None
 
 
@@ -17,6 +18,7 @@ class UserRegister(BaseModel):
     full_name: str
     role: List[str]  # user, admin
     function: List[str]# e.g., ["doctor", "nurse"]
+    tenant_uid: Optional[str] = None
     metadata : Optional[dict] = None
 
 
