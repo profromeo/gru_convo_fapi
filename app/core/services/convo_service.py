@@ -320,11 +320,11 @@ class ConvoService:
             response = ChatResponse(
                 session_id=session.session_id,
                 message=response_data.get("message", start_node.message or "Welcome!"),
-                node_id=start_node.id,
-                node_type=start_node.type,
+                node_id=response_data.get("node_id", start_node.id),
+                node_type=response_data.get("node_type", start_node.type),
                 expects_input=response_data.get("requires_input", True),
-                input_type=start_node.input_type if start_node.collect_input else None,
-                input_field=start_node.input_field if start_node.collect_input else None,
+                input_type=response_data.get("input_type", start_node.input_type if start_node.collect_input else None),
+                input_field=response_data.get("input_field", start_node.input_field if start_node.collect_input else None),
                 completed=response_data.get("completed", False),
                 context=session.context,
                 options=response_data.get("options", []),
@@ -458,7 +458,7 @@ class ConvoService:
             response_data = await self._process_node(session, current_node, user_message, convo)
             
             # Determine which node we're actually on after processing
-            actual_node_id = response_data.get("next_node_id") or current_node.id
+            actual_node_id = response_data.get("node_id") or response_data.get("next_node_id") or current_node.id
             actual_node = next(
                 (node for node in convo.nodes if node.id == actual_node_id),
                 current_node
@@ -481,9 +481,11 @@ class ConvoService:
                     timestamp= datetime.utcnow().isoformat()
                 ).model_dump())
             
-            # Update current node if there's a next node
+            # Update current node if there's a next node or if node_id changed (chaining)
             if response_data.get("next_node_id"):
                 session.current_node_id = response_data["next_node_id"]
+            elif response_data.get("node_id") and response_data["node_id"] != current_node.id:
+                session.current_node_id = response_data["node_id"]
             
             # Mark as completed if needed
             if response_data.get("completed"):
@@ -870,6 +872,48 @@ class ConvoService:
             if node.type == NodeType.PROCESS_MEDIA:
                 return await self._process_process_media_node(session, node, user_input, convo)
             
+            # Handling for nodes that don't collect input (e.g. strict info messages that should have auto-chained)
+            # If we land here via continue_chat_session, we should try to execute/chain them.
+            if not node.collect_input:
+                logger.info(f"Processing non-input node {node.id} in _process_node")
+                
+                # Execute actions
+                if node.actions:
+                    await self._execute_node_actions(session, node)
+                
+                # Render message (so it's not lost if we chain, though _chain_nodes usually re-renders)
+                # But if we chain, _chain_nodes handles the rest.
+                
+                should_chain = False
+                next_node_id = None
+                
+                if node.type == NodeType.MESSAGE or node.type == NodeType.START:
+                    # Check for unconditional transition
+                    if node.transitions:
+                        for transition in node.transitions:
+                            if not transition.condition:
+                                next_node_id = transition.target_node_id
+                                should_chain = True
+                                break
+                    
+                    # Check default transition
+                    if not should_chain and node.default_transition:
+                        next_node_id = node.default_transition
+                        should_chain = True
+                
+                if should_chain and next_node_id:
+                     # Render current node message to pass to chain so it's included? 
+                     # _chain_nodes takes 'initial_messages' list.
+                     rendered_message = self._render_template(node.message or "", session.context)
+                     
+                     logger.info(f"Auto-chaining from {node.id} to {next_node_id}")
+                     return await self._chain_nodes(
+                        session, 
+                        convo, 
+                        next_node_id,
+                        initial_messages=[rendered_message]
+                     )
+
             # Add user message to history if provided
             if user_input:
                 session.history.append(ChatMessage(
@@ -1033,6 +1077,38 @@ class ConvoService:
                         "target_node_id": transition.target_node_id
                     })
             
+            # Execute node actions (if any)
+            if node.actions:
+                await self._execute_node_actions(session, node)
+            
+            # Check if we should chain to next node immediately
+            # Only chain if we don't need to collect input
+            should_chain = False
+            next_node_id = None
+            
+            if not node.collect_input and (node.type == NodeType.MESSAGE or node.type == NodeType.START):
+                # Check for unconditional transition
+                if node.transitions:
+                    for transition in node.transitions:
+                        if not transition.condition:
+                            next_node_id = transition.target_node_id
+                            should_chain = True
+                            break
+                
+                # Check default transition
+                if not should_chain and node.default_transition:
+                    next_node_id = node.default_transition
+                    should_chain = True
+            
+            if should_chain and next_node_id:
+                logger.info(f"Chaining from initial node {node.id} to {next_node_id}")
+                return await self._chain_nodes(
+                    session, 
+                    convo, 
+                    next_node_id, 
+                    initial_messages=[rendered_message]
+                )
+
             # Check for Telegram Config
             metadata = self._get_telegram_metadata(node, session)
 
@@ -1206,6 +1282,10 @@ class ConvoService:
             
             # Accumulate message
             combined_messages.append(node_message)
+            
+            # Execute node actions (if any)
+            if node.actions:
+                await self._execute_node_actions(session, node)
             
             # Check if we should chain to next node (MESSAGE type)
             should_chain = False
@@ -2013,10 +2093,10 @@ class ConvoService:
                     logger.info(f"Matched label '{transition.label}' -> {transition.target_node_id}")
                     return transition.target_node_id, None
             
-            # No match found
-            error_msg = f"⚠️ Invalid selection for {node.name}. Please choose from the options provided.\n\nType 'menu' to return to main menu."
-            logger.warning(f"No match found for input '{user_input}' on node {node.id}")
-            return None, error_msg
+            # No match found via index or label
+            # Continue to conditional checks instead of returning error immediately
+            logger.info(f"No index/label match found for input '{user_input}' on node {node.id}, checking conditions...")
+
         
         # Handle conditional transitions
         for transition in sorted(node.transitions, key=lambda t: t.priority, reverse=True):
@@ -2033,6 +2113,9 @@ class ConvoService:
             return node.default_transition, None
         
         # No valid transition found
+        if node.type == NodeType.MENU:
+             return None, f"⚠️ Invalid selection for {node.name}. Please choose from the options provided.\n\nType 'menu' to return to main menu."
+
         return None, "I'm not sure how to proceed. Please try again or type 'menu' to return to the main menu."
     
     async def process_message(
@@ -2135,12 +2218,18 @@ class ConvoService:
         """Handle special navigation commands like 'menu', 'back', 'restart'."""
         command = user_input.strip().lower()
         
-        if command in ["menu", "main menu", "main"]:
+        if command in ["menu", "main menu", "main","hello","hi"]:
             # Return to start node
-            start_node = next(
-                (node for node in convo.nodes if node.type == NodeType.START or node.type == NodeType.MENU),
-                None
-            )
+            # Return to start node
+            start_node = None
+            if convo.start_node_id:
+                start_node = next((n for n in convo.nodes if n.id == convo.start_node_id), None)
+            
+            if not start_node:
+                start_node = next(
+                    (node for node in convo.nodes if node.type == NodeType.START or node.type == NodeType.MENU),
+                    None
+                )
             
             if not start_node:
                 logger.error("No start node found in convo")
@@ -2163,7 +2252,7 @@ class ConvoService:
                 "content": start_node.message or "Returning to main menu...",
                 "node_id": start_node.id,
                 "timestamp": datetime.utcnow().isoformat()
-            }.model_dump())
+            })
             
             # Build options for start node
             options = []
@@ -2175,17 +2264,48 @@ class ConvoService:
                         "target_node_id": transition.target_node_id
                     })
             
+            # Execute actions
+            if start_node.actions:
+                await self._execute_node_actions(session, start_node)
+
+            # Render message
+            rendered_message = self._render_template(start_node.message or "Returning to main menu...", session.context)
+
+            # Auto-chaining check
+            should_chain = False
+            next_node_id = None
+            
+            if not start_node.collect_input and (start_node.type == NodeType.MESSAGE or start_node.type == NodeType.START):
+                if start_node.transitions:
+                    for transition in start_node.transitions:
+                        if not transition.condition:
+                            next_node_id = transition.target_node_id
+                            should_chain = True
+                            break
+                if not should_chain and start_node.default_transition:
+                    next_node_id = start_node.default_transition
+                    should_chain = True
+            
+            if should_chain and next_node_id:
+                logger.info(f"Navigation: Auto-chaining from start node {start_node.id} to {next_node_id}")
+                return await self._chain_nodes(session, convo, next_node_id, initial_messages=[rendered_message])
+
+            
             logger.info(f"Navigation: Returned to main menu (node: {start_node.id})")
             
+            # Check for Telegram Config
+            metadata = self._get_telegram_metadata(start_node, session)
+
             return {
-                "message": start_node.message or "Returning to main menu...",
+                "message": rendered_message,
                 "node_id": start_node.id,
                 "node_type": start_node.type,
                 "requires_input": start_node.collect_input,
                 "input_type": start_node.input_type if start_node.collect_input else None,
                 "input_field": start_node.input_field if start_node.collect_input else None,
                 "completed": False,
-                "options": options
+                "options": options,
+                "metadata": metadata
             }
         
         elif command in ["back", "previous"]:
@@ -2231,17 +2351,47 @@ class ConvoService:
                                         "target_node_id": transition.target_node_id
                                     })
                             
-                            logger.info(f"Navigation: Went back to node {previous_node.id}")
+                            # Execute actions
+                            if previous_node.actions:
+                                await self._execute_node_actions(session, previous_node)
+
+                            # Render message
+                            rendered_message = self._render_template(previous_node.message or "Going back...", session.context)
+
+                            # Auto-chaining check
+                            should_chain = False
+                            next_node_id = None
                             
+                            if not previous_node.collect_input and (previous_node.type == NodeType.MESSAGE or previous_node.type == NodeType.START):
+                                if previous_node.transitions:
+                                    for transition in previous_node.transitions:
+                                        if not transition.condition:
+                                            next_node_id = transition.target_node_id
+                                            should_chain = True
+                                            break
+                                if not should_chain and previous_node.default_transition:
+                                    next_node_id = previous_node.default_transition
+                                    should_chain = True
+                            
+                            if should_chain and next_node_id:
+                                logger.info(f"Navigation: Auto-chaining from previous node {previous_node.id} to {next_node_id}")
+                                return await self._chain_nodes(session, convo, next_node_id, initial_messages=[rendered_message])
+
+                            logger.info(f"Navigation: Returned to previous node (node: {previous_node.id})")
+                            
+                            # Check for Telegram Config
+                            metadata = self._get_telegram_metadata(previous_node, session)
+
                             return {
-                                "message": previous_node.message or "Going back...",
+                                "message": rendered_message,
                                 "node_id": previous_node.id,
                                 "node_type": previous_node.type,
                                 "requires_input": previous_node.collect_input,
                                 "input_type": previous_node.input_type if previous_node.collect_input else None,
                                 "input_field": previous_node.input_field if previous_node.collect_input else None,
                                 "completed": False,
-                                "options": options
+                                "options": options, # Re-using the options built above
+                                "metadata": metadata
                             }
                         break
         
