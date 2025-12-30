@@ -89,6 +89,7 @@ class ChatMessageRequest(BaseModel):
     """Request body for sending a chat message."""
     message: Optional[str] = Field(None, description="User message to send")
     media_url: Optional[str] = Field(None, description="Media URL (or object name)")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Metadata to send with the message")
 
 
 
@@ -333,7 +334,7 @@ class ChatRequest(BaseModel):
     message: Optional[str] = Field(None, description="User message/input")
     action: Optional[str] = Field(None, description="Specific action to perform")
     context: Dict[str, Any] = Field(default_factory=dict, description="Additional context")
-
+    email: Optional[str] = Field(None, description="User email")
 
 class ChatResponse(BaseModel):
     """Response from convo interaction."""

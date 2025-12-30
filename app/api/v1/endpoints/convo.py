@@ -210,12 +210,14 @@ async def send_chat_message(
         # Extract from body if provided
         final_message = message
         final_media_url = media_url
-        
+        metadata = {}
         if body:
             if body.message:
                 final_message = body.message
             if body.media_url:
                 final_media_url = body.media_url
+            if body.metadata:
+                metadata = body.metadata
         
         # Validation
         if not final_message and not final_media_url:
@@ -228,7 +230,7 @@ async def send_chat_message(
         if final_message is None:
             final_message = ""
 
-        response = await service.continue_chat_session(session_id, final_message, media_url=final_media_url)
+        response = await service.continue_chat_session(session_id, final_message, media_url=final_media_url, metadata=metadata)
         return response
     except HTTPException:
         raise

@@ -177,7 +177,8 @@ async def login_register_session(
         # Step 1: Check if user exists
         logger.info("Step 1: Looking up user by email...")
         user = await user_service.get_user_by_email(user_data.email)
-        
+        metadata = user_data.metadata if user_data.metadata else {}
+        metadata.update({"origin": "chat_interface_debug_login_register"})
         if not user:
             logger.warning(f"Step 1 FAILED: User not found for email: {user_data.email}")
             user = await user_service.create_user(
@@ -186,7 +187,7 @@ async def login_register_session(
             full_name=user_data.email,
             role=['user'],
             function=[],
-            metadata = {"origin": "chat_interface_debug_login_register"},
+            metadata = metadata,
             tenant_uid=user_data.tenant_uid
             )
         
@@ -262,7 +263,9 @@ async def login_register_session(
                         
                 new_chat_request = ChatRequest(
                     user_id=user.user_id,
-                    convo_id=user_data.metadata['convo_id'],     
+                    convo_id=user_data.metadata['convo_id'],
+                    email=user_data.email,
+                    metadata=user_data.metadata     
                 )
                 
                 response = await service.start_chat_session(new_chat_request)

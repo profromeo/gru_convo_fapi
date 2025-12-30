@@ -262,6 +262,9 @@ class ConvoService:
         
             logger.info(f"Starting chat session for convo: {convo.id}")
             logger.info(f"Start node ID: {convo.start_node_id}")
+
+            context = request.context or {}
+            context['identifier'] = request.email if request.email else None
         
             # Create session with generated session_id
             session = ChatSession(
@@ -270,7 +273,7 @@ class ConvoService:
                 user_id=request.user_id,
                 tenant_uid=request.tenant_uid,
                 current_node_id=convo.start_node_id,
-                context=request.context or {},
+                context=context,
                 history=[],
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow(),
@@ -363,7 +366,8 @@ class ConvoService:
         self,
         session_id: str,
         user_message: str,
-        media_url: Optional[str] = None
+        media_url: Optional[str] = None,
+        metadata: Optional[dict] = None
     ) -> ChatResponse:
         """Continue an existing chat session with a user message."""
         try:
@@ -383,6 +387,11 @@ class ConvoService:
                 #    message=f"Chat session '{session_id}' not found",
                 #    http_status_code=404
                 #)
+            if metadata:
+                session.context['metadata'] = metadata
+                logger.info(f"Updated session context with metadata: {metadata}")
+            
+            #session.context['metadata'] = metadata
             
             if session.completed:
                 new_chat_request = ChatRequest(
@@ -1079,28 +1088,58 @@ class ConvoService:
             pattern = r'\{\{([^}]+)\}\}'
             
             def replace_variable(match):
-                var_name = match.group(1).strip()
+                # Parse variable for filters (format: var_name:key1,key2)
+                full_var_name = match.group(1).strip()
+                var_name = full_var_name
+                keys_to_extract = None
                 
-                # Handle nested variables (e.g., user.name)
-                if '.' in var_name:
-                    parts = var_name.split('.')
-                    value = context
-                    for part in parts:
-                        if isinstance(value, dict) and part in value:
-                            value = value[part]
-                        else:
-                            # Variable not found, keep original placeholder
-                            logger.warning(f"Context variable '{var_name}' not found in session context")
-                            return match.group(0)
-                    return str(value)
-                else:
-                    # Simple variable lookup
-                    if var_name in context:
-                        return str(context[var_name])
+                if ':' in full_var_name:
+                    parts = full_var_name.split(':')
+                    var_name = parts[0].strip()
+                    if len(parts) > 1:
+                        keys_to_extract = [k.strip() for k in parts[1].split(',')]
+
+                # Helper to resolve variable from context
+                def resolve_var(name, ctx):
+                    if '.' in name:
+                        parts = name.split('.')
+                        value = ctx
+                        for part in parts:
+                            if isinstance(value, dict) and part in value:
+                                value = value[part]
+                            else:
+                                return None
+                        return value
                     else:
-                        # Variable not found, keep original placeholder
-                        logger.warning(f"Context variable '{var_name}' not found in session context")
-                        return match.group(0)
+                        return ctx.get(name)
+
+                value = resolve_var(var_name, context)
+
+                if value is None:
+                    # Variable not found, keep original placeholder
+                    logger.warning(f"Context variable '{var_name}' not found in session context")
+                    return match.group(0)
+                
+                # Check if it's a list and we have keys to extract
+                if isinstance(value, list) and keys_to_extract:
+                    lines = []
+                    for item in value:
+                        if isinstance(item, dict):
+                            # Extract values for specified keys
+                            item_values = []
+                            for key in keys_to_extract:
+                                if key in item:
+                                    item_values.append(str(item[key]))
+                            
+                            if item_values:
+                                lines.append(" - ".join(item_values))
+                    return "\n".join(lines)
+                
+                # Standard list handling
+                if isinstance(value, list):
+                    return "\n".join(str(item) for item in value)
+
+                return str(value)
             
             rendered = re.sub(pattern, replace_variable, template)
             return rendered
@@ -2215,7 +2254,10 @@ class ConvoService:
             
             if start_node:
                 # Clear context and history
-                session.context = {}
+
+                identifier = session.context.get("identifier")
+
+                session.context = {"identifier": identifier}
                 session.history = []
                 session.current_node_id = start_node.id
                 
