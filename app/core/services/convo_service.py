@@ -1445,10 +1445,18 @@ class ConvoService:
                 
                 target_value = str(condition.value) if condition.value is not None else None
                 
+                # Support for multiple values (e.g. "1::yes")
+                target_values = [target_value]
+                if target_value and "::" in target_value:
+                    target_values = target_value.split("::")
+
                 if condition.type == TransitionConditionType.EQUALS:
-                    return value_to_check == target_value
+                    # Check if value matches ANY of the target values
+                    return any(value_to_check == val for val in target_values)
                 elif condition.type == TransitionConditionType.CONTAINS:
-                    return target_value in value_to_check if target_value else False
+                    # Check if ANY of the target values are in value_to_check
+                    # Note: Usually CONTAINS is (target in value)
+                    return any(val in value_to_check for val in target_values) if target_values else False
                 elif condition.type == TransitionConditionType.REGEX:
                     import re
                     return bool(re.search(target_value, value_to_check)) if target_value else False

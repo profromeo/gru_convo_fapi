@@ -276,6 +276,9 @@
             <button id="btn-save-db">Save DB</button>
             <button id="btn-save-as-new">Save As New</button>
             <div class="separator"></div>
+            <button id="btn-save-as-new">Save As New</button>
+            <div class="separator"></div>
+            <button id="btn-view-variables">Variables</button>
             <button id="btn-auto-arrange">Auto Arrange</button>
             <select id="add-node-select">
                 <option value="" selected>+ Add Node</option>
@@ -312,6 +315,31 @@
             <ul id="flow-list">
                 <!-- Flows will be listed here -->
             </ul>
+        </div>
+    </div>
+
+    <!-- Variables Modal -->
+    <div id="variables-modal" class="modal">
+        <div class="modal-content" style="width: 70%;">
+            <span class="close-variables-modal close-modal">&times;</span>
+            <h2>Input Fields Summary</h2>
+            <p style="color: #a6adc8; font-size: 0.9rem; margin-bottom: 15px;">List of all variables collected in this
+                flow.</p>
+            <div style="overflow-x: auto;">
+                <table id="variables-table" style="width: 100%; border-collapse: collapse; color: #cdd6f4;">
+                    <thead>
+                        <tr style="background-color: #313244; text-align: left;">
+                            <th style="padding: 10px; border-bottom: 1px solid #45475a;">Variable Name</th>
+                            <th style="padding: 10px; border-bottom: 1px solid #45475a;">Input Type</th>
+                            <th style="padding: 10px; border-bottom: 1px solid #45475a;">Node Name (ID)</th>
+                            <th style="padding: 10px; border-bottom: 1px solid #45475a;">Node Type</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Variables will be injected here -->
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
@@ -431,8 +459,10 @@
 
         const canvasContainer = document.getElementById('canvas-container');
         const dbModal = document.getElementById('db-modal');
+        const variablesModal = document.getElementById('variables-modal');
         const flowList = document.getElementById('flow-list');
         const closeModalBtn = document.querySelector('.close-modal');
+        const closeVariablesModalBtn = document.querySelector('.close-variables-modal');
 
         // --- Initialization ---
         function init() {
@@ -450,6 +480,9 @@
             document.getElementById('btn-save-db').addEventListener('click', saveChatflowToDb);
             document.getElementById('btn-save-as-new').addEventListener('click', saveAsNewFlow);
 
+            document.getElementById('btn-save-as-new').addEventListener('click', saveAsNewFlow);
+
+            document.getElementById('btn-view-variables').addEventListener('click', openVariablesModal);
             document.getElementById('btn-auto-arrange').addEventListener('click', autoArrange);
             document.getElementById('add-node-select').addEventListener('change', (e) => {
                 if (e.target.value) {
@@ -459,9 +492,13 @@
             });
 
             closeModalBtn.addEventListener('click', () => dbModal.style.display = "none");
+            closeVariablesModalBtn.addEventListener('click', () => variablesModal.style.display = "none");
             window.addEventListener('click', (e) => {
                 if (e.target == dbModal) {
                     dbModal.style.display = "none";
+                }
+                if (e.target == variablesModal) {
+                    variablesModal.style.display = "none";
                 }
             });
 
@@ -1098,6 +1135,41 @@
                 `;
             }
 
+            // Telegram Config (Available for all nodes)
+            html += `
+                <div style="border: 1px solid #45475a; padding: 10px; margin-top: 15px; border-radius: 4px; background-color: rgba(137, 180, 250, 0.05);">
+                    <h4 style="margin: 0 0 10px 0; color: var(--accent-color);">Telegram Config</h4>
+                    <div class="form-group">
+                        <label>Data List Variable</label>
+                        <input type="text" value="${data.telegram_config?.data_list_variable || ''}" onchange="updateTelegramConfig('${node.id}', 'data_list_variable', this.value)">
+                        <small style="color: #6c7086;">Variable for dynamic list items</small>
+                    </div>
+                     <div class="form-group">
+                        <label>List Key (ID)</label>
+                        <input type="text" value="${data.telegram_config?.list_key || 'id'}" onchange="updateTelegramConfig('${node.id}', 'list_key', this.value)">
+                    </div>
+                     <div class="form-group">
+                        <label>Display Key (Label)</label>
+                        <input type="text" value="${data.telegram_config?.display_key || 'label'}" onchange="updateTelegramConfig('${node.id}', 'display_key', this.value)">
+                    </div>
+
+                    <label style="margin-top: 10px; display: block;">Telegram Options (Static)</label>
+                    <div style="display: flex; gap: 5px; margin-bottom: 5px; font-size: 0.8rem; color: #6c7086;">
+                        <span style="flex: 1;">Label (Display)</span>
+                        <span style="flex: 1;">Value (Data)</span>
+                        <span style="width: 24px;"></span>
+                    </div>
+                    ${data.telegram_config?.telegram_options && data.telegram_config.telegram_options.length > 0 ? data.telegram_config.telegram_options.map((opt, i) => `
+                        <div style="display: flex; gap: 5px; margin-bottom: 5px;">
+                            <input type="text" placeholder="Label" value="${opt.label || ''}" onchange="updateTelegramOption('${node.id}', ${i}, 'label', this.value)" style="flex: 1; min-width: 0;">
+                            <input type="text" placeholder="Value" value="${opt.value || ''}" onchange="updateTelegramOption('${node.id}', ${i}, 'value', this.value)" style="flex: 1; min-width: 0;">
+                            <button onclick="deleteTelegramOption('${node.id}', ${i})" style="background-color: #f38ba8; color: #1e1e2e; padding: 0 8px; flex-shrink: 0;">&times;</button>
+                        </div>
+                    `).join('') : '<p style="font-size: 0.8rem; color: #6c7086; margin-top: 5px;">No options defined.</p>'}
+                    <button onclick="addTelegramOption('${node.id}')" style="width: 100%; margin-top: 5px; background-color: var(--node-bg); border: 1px dashed var(--accent-color); color: var(--accent-color); font-size: 0.85rem;">+ Add Option</button>
+                </div>
+            `;
+
             // Transitions List
             html += `<h3>Transitions</h3>`;
             if (data.transitions && data.transitions.length > 0) {
@@ -1401,6 +1473,41 @@
                 } catch (err) {
                     alert('Invalid JSON for metadata: ' + err.message);
                 }
+            }
+        }
+
+        // --- Telegram Config ---
+
+        function updateTelegramConfig(id, field, value) {
+            const node = nodes.find(n => n.id === id);
+            if (node) {
+                if (!node.data.telegram_config) node.data.telegram_config = {};
+                node.data.telegram_config[field] = value;
+            }
+        }
+
+        function addTelegramOption(id) {
+            const node = nodes.find(n => n.id === id);
+            if (node) {
+                if (!node.data.telegram_config) node.data.telegram_config = {};
+                if (!node.data.telegram_config.telegram_options) node.data.telegram_config.telegram_options = [];
+                node.data.telegram_config.telegram_options.push({ label: "", value: "" });
+                renderProperties(id);
+            }
+        }
+
+        function updateTelegramOption(id, index, field, newValue) {
+            const node = nodes.find(n => n.id === id);
+            if (node && node.data.telegram_config && node.data.telegram_config.telegram_options[index]) {
+                node.data.telegram_config.telegram_options[index][field] = newValue;
+            }
+        }
+
+        function deleteTelegramOption(id, index) {
+            const node = nodes.find(n => n.id === id);
+            if (node && node.data.telegram_config && node.data.telegram_config.telegram_options) {
+                node.data.telegram_config.telegram_options.splice(index, 1);
+                renderProperties(id);
             }
         }
 
@@ -1857,6 +1964,71 @@
         updateCanvasTransform();
 
 
+        function openVariablesModal() {
+            const tbody = document.querySelector('#variables-table tbody');
+            tbody.innerHTML = '';
+
+            const variables = [];
+
+            nodes.forEach(node => {
+                // Check for input_field in main data
+                if (node.data.collect_input && node.data.input_field) {
+                    variables.push({
+                        name: node.data.input_field,
+                        type: node.data.input_type || 'text',
+                        nodeName: node.data.name || node.name,
+                        nodeId: node.id,
+                        nodeType: node.type
+                    });
+                }
+
+                // Check for process_media output variable
+                if (node.type === 'process_media' && node.data.process_media_config && node.data.process_media_config.output_variable) {
+                    variables.push({
+                        name: node.data.process_media_config.output_variable,
+                        type: 'media_result',
+                        nodeName: node.data.name || node.name,
+                        nodeId: node.id,
+                        nodeType: node.type
+                    });
+                }
+
+                // Check for API Call outputs (which are effectively variables added to context)
+                if (node.data.actions) {
+                    node.data.actions.forEach(action => {
+                        if (action.type === 'api_call' && action.api_action && action.api_action.output) {
+                            action.api_action.output.forEach(outVar => {
+                                variables.push({
+                                    name: outVar,
+                                    type: 'api_output',
+                                    nodeName: node.data.name || node.name,
+                                    nodeId: node.id,
+                                    nodeType: node.type + ' (API)'
+                                });
+                            });
+                        }
+                    });
+                }
+            });
+
+            if (variables.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="padding: 15px; text-align: center; color: #6c7086;">No input variables found in this flow.</td></tr>';
+            } else {
+                variables.forEach(v => {
+                    const tr = document.createElement('tr');
+                    tr.style.borderBottom = '1px solid #313244';
+                    tr.innerHTML = `
+                        <td style="padding: 10px; color: var(--accent-color); font-weight: bold;">${v.name}</td>
+                        <td style="padding: 10px;">${v.type}</td>
+                        <td style="padding: 10px;">${v.nodeName} <span style="font-size: 0.8em; color: #6c7086;">(${v.nodeId})</span></td>
+                        <td style="padding: 10px;">${v.nodeType}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            document.getElementById('variables-modal').style.display = "block";
+        }
     </script>
 </body>
 

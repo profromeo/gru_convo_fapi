@@ -2,7 +2,7 @@ import logging
 import sys
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, Depends, Response
+from fastapi import Depends, FastAPI, HTTPException, status, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.exceptions import RequestValidationError
@@ -17,6 +17,14 @@ from app.web.router import router as web_router
 from app.core.utils.exceptions import APIServiceException, convert_exception_to_http
 from app.db.mongodb import init_mongodb, close_mongodb
 
+
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+
+
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
+from fastapi.openapi.utils import get_openapi
+
+import secrets
 
 def setup_logging():
     """Configure logging for the application."""
@@ -96,9 +104,9 @@ def create_app() -> FastAPI:
         description=settings.app_description,
         version=settings.app_version,
         lifespan=lifespan,
-        docs_url="/docs" if settings.debug else None,
-        redoc_url="/redoc" if settings.debug else None,
-        openapi_url="/openapi.json" if settings.debug else None,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
         debug=settings.debug
     )
     
@@ -165,7 +173,8 @@ def create_app() -> FastAPI:
                 "success": False,
                 "message": exc.detail,
                 "status_code": exc.status_code
-            }
+            },
+            headers=getattr(exc, "headers", None)
         )
 
     @app.exception_handler(APIServiceException)
@@ -229,7 +238,38 @@ def create_app() -> FastAPI:
 
     # Include Web router
     app.include_router(web_router)
+
+
+    security = HTTPBasic()
+
+    def get_basic_auth_current_username(credentials: HTTPBasicCredentials = Depends(security)):
+        correct_username = secrets.compare_digest(credentials.username, "liveuser")
+        correct_password = secrets.compare_digest(credentials.password, "l1v3us3r")
+        if not (correct_username and correct_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password",
+                headers={"WWW-Authenticate": "Basic"},
+            )
+        return credentials.username
     
+    @app.get("/docs", include_in_schema=False)
+    async def get_swagger_documentation(username: str = Depends(get_basic_auth_current_username)):
+        return get_swagger_ui_html(openapi_url="/openapi.json", title="docs")
+
+
+    @app.get("/redoc", include_in_schema=False)
+    async def get_redoc_documentation(username: str = Depends(get_basic_auth_current_username)):
+        return get_redoc_html(openapi_url="/openapi.json", title="docs")
+
+
+    @app.get("/openapi.json", include_in_schema=False)
+    async def openapi(username: str = Depends(get_basic_auth_current_username)):
+        return get_openapi(title=app.title, version=app.version, routes=app.routes)
+    
+    
+
+
     # Root endpoint
     @app.get("/", tags=["Root"])
     async def root():
