@@ -1,6 +1,6 @@
 import uuid
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
@@ -11,6 +11,7 @@ class User(BaseModel):
     id: str = Field(alias="_id")  # Maps MongoDB's _id to id field
     user_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     email: str
+    metadata: Dict[str, Any] = Field(default_factory=dict)
     full_name: str
     hashed_password: str
     role: List[str] = Field(default_factory=lambda: ["user"])  # Default to ["user"]

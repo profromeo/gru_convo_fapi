@@ -12,7 +12,7 @@ from app.core.models.convo import (
     ChatMessageRequest
 )
 from app.core.services.convo_service import ConvoService
-from app.db.mongodb import get_database
+from app.db.mongodb import get_database, get_auth_database
 from app.core.auth.dependencies import get_current_user
 from app.core.models.users import User
 import logging
@@ -22,10 +22,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def get_convo_service(db: AsyncIOMotorDatabase = Depends(get_database)) -> ConvoService:
+def get_convo_service(
+    db: AsyncIOMotorDatabase = Depends(get_database),
+    auth_db: AsyncIOMotorDatabase = Depends(get_auth_database)
+) -> ConvoService:
     """Dependency to get convo service instance."""
     settings = get_settings()
-    return ConvoService(settings, db)
+    return ConvoService(settings, db, auth_db)
 
 
 @router.post("/convos", response_model=ConvoDefinition, status_code=status.HTTP_201_CREATED)

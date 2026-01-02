@@ -1,5 +1,6 @@
 
 import json
+import mimetypes
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
@@ -36,9 +37,10 @@ logger = logging.getLogger(__name__)
 class ConvoService:
     """Service for managing convos and chat sessions."""
     
-    def __init__(self, settings: Settings, database: AsyncIOMotorDatabase):
+    def __init__(self, settings: Settings, database: AsyncIOMotorDatabase, auth_database: AsyncIOMotorDatabase):
         self.settings = settings
         self.database = database
+        self.auth_database = auth_database
         self.convos_collection = database["chat_convos"]
         self.sessions_collection = database["chat_sessions"]
         self.ai_sessions_collection = database["ai_chat_sessions"]
@@ -1141,7 +1143,7 @@ class ConvoService:
             
             if node.telegram_config.data_list_variable:
                 data_list = session.context.get(node.telegram_config.data_list_variable)
-                data_list = [{"id": "001", "name": "item 1"}, {"id": "002", "name": "item 2"}, {"id": "003", "name": "item 3"}, {"id": "004", "name": "item 4"}, {"id": "005", "name": "item 5"}]
+                #data_list = [{"id": "001", "name": "item 1"}, {"id": "002", "name": "item 2"}, {"id": "003", "name": "item 3"}, {"id": "004", "name": "item 4"}, {"id": "005", "name": "item 5"}]
                 if data_list:
                     metadata["data_list"] = data_list
                     metadata["list_key"] = node.telegram_config.list_key
@@ -1261,6 +1263,10 @@ class ConvoService:
             # Update session to new node
             session.current_node_id = next_node_id
             
+            # Execute node actions (if any) BEFORE rendering message to ensure context is updated
+            if node.actions:
+                await self._execute_node_actions(session, node)
+            
             # Render node's message with context variables
             # Note: For the *very first* node in the chain, if it came from an external process (like process_media),
             # the message might have already been processed or needs to be skipped if we just want to leverage transitions?
@@ -1282,10 +1288,6 @@ class ConvoService:
             
             # Accumulate message
             combined_messages.append(node_message)
-            
-            # Execute node actions (if any)
-            if node.actions:
-                await self._execute_node_actions(session, node)
             
             # Check if we should chain to next node (MESSAGE type)
             should_chain = False
@@ -1519,6 +1521,15 @@ class ConvoService:
         
         api_config = action.api_action
         
+        # Clear output variables and previous error
+        for output_var in api_config.output:
+            session.context[output_var] = None
+        session.context["api_error"] = None
+        
+        # Save session to persist cleared state
+        await self._update_session(session)
+
+        
         try:
             # Prepare input data from session context
             input_data = {}
@@ -1527,6 +1538,15 @@ class ConvoService:
                     input_data[input_var] = session.context[input_var]
                 else:
                     logger.warning(f"Input variable '{input_var}' not found in session context")
+            
+            # Add user metadata to input params (fetch from User model)
+            if session.user_id:
+                user = await self.auth_database["users"].find_one({"user_id": session.user_id})
+                if user and user.get("metadata"):
+                    input_data["user_metadata"] = user.get("metadata")
+
+            
+            
             
             # Prepare headers
             headers = api_config.headers or {}
@@ -1582,21 +1602,33 @@ class ConvoService:
                         logger.debug(f"Stored '{output_var}' in session context: {value}")
                     else:
                         logger.warning(f"Output variable '{output_var}' not found in API response")
+                
+                # Save session to persist output variables
+                await self._update_session(session)
                                 
                 # Mark action as successful
                 if action.on_success:
                     logger.info(f"Action successful, could jump to node: {action.on_success}")
                     
         except httpx.HTTPStatusError as e:
-            logger.error(f"API call failed with status {e.response.status_code}: {e}")
+            error_msg = f"API call failed with status {e.response.status_code}: {e}"
+            logger.error(error_msg)
+            session.context["api_error"] = error_msg
+            await self._update_session(session)
             if action.on_failure:
                 logger.info(f"Action failed, could jump to node: {action.on_failure}")
         except httpx.RequestError as e:
-            logger.error(f"API request error: {e}")
+            error_msg = f"API request error: {e}"
+            logger.error(error_msg)
+            session.context["api_error"] = error_msg
+            await self._update_session(session)
             if action.on_failure:
                 logger.info(f"Action failed, could jump to node: {action.on_failure}")
         except Exception as e:
-            logger.error(f"Unexpected error during API call: {e}", exc_info=True)
+            error_msg = f"Unexpected error during API call: {e}"
+            logger.error(error_msg, exc_info=True)
+            session.context["api_error"] = error_msg
+            await self._update_session(session)
             if action.on_failure:
                 logger.info(f"Action failed, could jump to node: {action.on_failure}")
 
@@ -1622,6 +1654,27 @@ class ConvoService:
                 else:
                     logger.warning(f"Input variable '{input_var}' not found in session context")
             
+            # Add user metadata to input params (flattened)
+            if session.user_id:
+                user = await self.auth_database["users"].find_one({"user_id": session.user_id})
+                if user and user.get("metadata"):
+                    for key, value in user.get("metadata").items():
+                        input_data[key] = str(value)
+            
+            # Determine media type
+            mime_type, _ = mimetypes.guess_type(file_path)
+            media_type = "document" # default
+            
+            if mime_type:
+                if mime_type.startswith("image/"):
+                    media_type = "image"
+                elif mime_type.startswith("video/"):
+                    media_type = "video"
+                elif mime_type.startswith("audio/"):
+                    media_type = "audio"
+            
+            input_data["media_type"] = media_type
+
             # headers
             headers = api_config.headers or {}
             # Do NOT set Content-Type to application/json, httpx will set multipart/form-data with boundary
