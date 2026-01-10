@@ -881,7 +881,11 @@ class ConvoService:
                 
                 # Execute actions
                 if node.actions:
-                    await self._execute_node_actions(session, node)
+                    jump_to_node_id = await self._execute_node_actions(session, node)
+                    if jump_to_node_id:
+                        logger.info(f"Action triggered jump from {node.id} to {jump_to_node_id}")
+                        # Chain immediately to the target node
+                        return await self._chain_nodes(session, convo, jump_to_node_id)
                 
                 # Render message (so it's not lost if we chain, though _chain_nodes usually re-renders)
                 # But if we chain, _chain_nodes handles the rest.
@@ -1264,8 +1268,16 @@ class ConvoService:
             session.current_node_id = next_node_id
             
             # Execute node actions (if any) BEFORE rendering message to ensure context is updated
+            # Execute node actions (if any) BEFORE rendering message to ensure context is updated
             if node.actions:
-                await self._execute_node_actions(session, node)
+                jump_to_node_id = await self._execute_node_actions(session, node)
+                if jump_to_node_id:
+                    logger.info(f"Action triggered jump from {node.id} to {jump_to_node_id}")
+                    # Update next_node_id to jump target
+                    next_node_id = jump_to_node_id
+                    # Skip remainder of this loop iteration (rendering message, checking other transitions)
+                    # and process the target node immediately
+                    continue
             
             # Render node's message with context variables
             # Note: For the *very first* node in the chain, if it came from an external process (like process_media),
@@ -1481,8 +1493,11 @@ class ConvoService:
         self,
         session: ChatSession,
         node: ConvoNode
-    ) -> None:
-        """Execute actions defined in a node."""
+    ) -> Optional[str]:
+        """
+        Execute actions defined in a node.
+        Returns: Target node ID if a jump is requested, None otherwise.
+        """
         for action in node.actions:
             try:
                 if action.type == "save_to_context":
@@ -1492,7 +1507,9 @@ class ConvoService:
                         
                 elif action.type == "api_call":
                     # Make an API call
-                    await self._execute_api_action(session, action)
+                    jump_to = await self._execute_api_action(session, action)
+                    if jump_to:
+                        return jump_to
                     
                 elif action.type == "send_email":
                     # Send email (implement as needed)
@@ -1506,14 +1523,18 @@ class ConvoService:
                 logger.error(f"Error executing action {action.type}: {e}")
                 # Decide whether to continue or stop on action failure
                 if action.on_failure:
-                    # Could implement jumping to failure node
-                    pass
+                    # Implement jumping to failure node if specified and exception caught here
+                    # (Though _execute_api_action handles its own exceptions usually)
+                    logger.info(f"Action exception caught, jumping to failure node: {action.on_failure}")
+                    return action.on_failure
+        
+        return None
     
     async def _execute_api_action(
         self,
         session: ChatSession,
         action: NodeAction
-    ) -> None:
+    ) -> Optional[str]:
         """Execute an API action."""
         if not action.api_action:
             logger.warning("API action called but no api_action configuration found")
@@ -1608,7 +1629,10 @@ class ConvoService:
                                 
                 # Mark action as successful
                 if action.on_success:
-                    logger.info(f"Action successful, could jump to node: {action.on_success}")
+                    logger.info(f"Action successful, jumping to node: {action.on_success}")
+                    return action.on_success
+                
+                return None
                     
         except httpx.HTTPStatusError as e:
             error_msg = f"API call failed with status {e.response.status_code}: {e}"
@@ -1616,21 +1640,26 @@ class ConvoService:
             session.context["api_error"] = error_msg
             await self._update_session(session)
             if action.on_failure:
-                logger.info(f"Action failed, could jump to node: {action.on_failure}")
+                logger.info(f"Action failed, jumping to node: {action.on_failure}")
+                return action.on_failure
         except httpx.RequestError as e:
             error_msg = f"API request error: {e}"
             logger.error(error_msg)
             session.context["api_error"] = error_msg
             await self._update_session(session)
             if action.on_failure:
-                logger.info(f"Action failed, could jump to node: {action.on_failure}")
+                logger.info(f"Action failed, jumping to node: {action.on_failure}")
+                return action.on_failure
         except Exception as e:
             error_msg = f"Unexpected error during API call: {e}"
             logger.error(error_msg, exc_info=True)
             session.context["api_error"] = error_msg
             await self._update_session(session)
             if action.on_failure:
-                logger.info(f"Action failed, could jump to node: {action.on_failure}")
+                logger.info(f"Action failed, jumping to node: {action.on_failure}")
+                return action.on_failure
+        
+        return None
 
     async def _process_media_service_action(
         self,
